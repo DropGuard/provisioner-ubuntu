@@ -3,6 +3,7 @@ package provision
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -261,5 +262,57 @@ func TestRunUserPhaseByName(t *testing.T) {
 	}
 	if err := p.RunUserPhaseByName("nope"); err == nil {
 		t.Error("unknown phase should error")
+	}
+}
+
+// TestNeedsSudo guards the double-sudo bug: inside a provision-user re-exec the
+// process is already the target user, so Runner must NOT re-sudo (a second
+// `sudo -u dailyuser` would prompt for a password and fail non-interactively).
+func TestNeedsSudo(t *testing.T) {
+	cases := []struct {
+		user   string
+		reexec bool
+		want   bool
+	}{
+		{"", true, false},          // no target user
+		{"", false, false},         // no target user
+		{"dailyuser", true, false}, // provision-user re-exec: already that user
+		{"dailyuser", false, true}, // root context: must sudo
+	}
+	for _, c := range cases {
+		if got := needsSudo(c.user, c.reexec); got != c.want {
+			t.Errorf("needsSudo(%q, %v) = %v, want %v", c.user, c.reexec, got, c.want)
+		}
+	}
+}
+
+// TestPhaseMiseShims verifies the tool-resolution mechanism (formerly a bash
+// check): each mise shim is symlinked into ~/.local/bin so a non-interactive
+// shell (an Agent / SSH bash -c) can find it.
+func TestPhaseMiseShims(t *testing.T) {
+	home := t.TempDir()
+	shims := filepath.Join(home, ".local", "share", "mise", "shims")
+	for _, tool := range []string{"go", "node"} {
+		if err := os.MkdirAll(shims, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(shims, tool), []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p := &Provisioner{Cfg: config.Provision{Home: home}, Runner: &fakeRunner{}}
+	if err := p.phaseMiseShims(p); err != nil {
+		t.Fatalf("phaseMiseShims: %v", err)
+	}
+	for _, tool := range []string{"go", "node"} {
+		link := filepath.Join(home, ".local", "bin", tool)
+		got, err := os.Readlink(link)
+		if err != nil {
+			t.Errorf("%s: %v", link, err)
+			continue
+		}
+		if want := filepath.Join(shims, tool); got != want {
+			t.Errorf("%s -> %q, want %q", link, got, want)
+		}
 	}
 }

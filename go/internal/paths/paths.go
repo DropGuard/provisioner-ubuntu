@@ -12,9 +12,8 @@ const (
 	// Fcitx5Script is the still-deployed user-side fcitx5 setup script.
 	Fcitx5Script = "/usr/local/bin/setup-fcitx5-chinese.sh"
 
-	// FavBin and TestEnvLoadingBin are helper scripts copied alongside.
-	FavBin            = "/usr/local/bin/fav"
-	TestEnvLoadingBin = "/usr/local/bin/test-env-loading"
+	// FavBin is a helper script copied alongside.
+	FavBin = "/usr/local/bin/fav"
 
 	// ShareDir holds the provision payload (config/ + dotfiles/) that the
 	// provisioner reads on first boot.

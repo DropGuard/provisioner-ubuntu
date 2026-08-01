@@ -20,6 +20,7 @@ type Provision struct {
 	Home string // target user home, e.g. "/home/dailyuser"
 
 	// Phase 0 — base environment (root)
+	AptMirror       string // primary apt mirror (e.g. mirrors.ustc.edu.cn)
 	CorePackages    []string // fail-fast if these fail
 	ExtraPackages   []string // best-effort
 	AddUserToDocker bool
@@ -65,17 +66,21 @@ func Default() Provision {
 		User: "dailyuser",
 		Home: "/home/dailyuser",
 
+		// The 26.04 desktop installer ignores autoinstall's `apt:` mirror for the
+		// target (writes a geo mirror like jp.archive), so the provision rewrites
+		// the sources itself — see phaseAptMirror.
+		AptMirror:     "mirrors.ustc.edu.cn",
 		CorePackages: []string{"build-essential", "curl", "git", "docker.io"},
 		ExtraPackages: []string{
 			"ripgrep", "eza", "unzip", "zip", "protobuf-compiler", "jq", "htop",
-			"ncdu", "bat", "fd-find",
+			"ncdu", "bat", "fd-find", "kitty",
 			"gnome-tweaks", "gnome-shell-extensions", "chrome-gnome-shell",
-			"vlc", "qimgv", "flameshot", "enpass", "gh",
+			"vlc", "qimgv", "flameshot", "gh",
 		},
 		AddUserToDocker: true,
 
 		BrewPrefix:   "/home/linuxbrew/.linuxbrew",
-		BrewPackages: []string{"yazi", "tokei", "gh"},
+		BrewPackages: []string{"yazi", "tokei"},
 		MiseTools: map[string]string{
 			"node": "lts", "python": "latest", "go": "latest", "rust": "stable",
 			"java": "latest", "bun": "latest", "pnpm": "latest", "maven": "latest",
@@ -94,7 +99,8 @@ func Default() Provision {
 			"spotify_spotify.desktop",
 		},
 		Fcitx5Packages: []string{
-			"fcitx5", "fcitx5-config-gui", "fcitx5-chinese-addons",
+			// 26.04 renamed fcitx5-config-gui → fcitx5-config-qt (same binary).
+			"fcitx5", "fcitx5-config-qt", "fcitx5-chinese-addons",
 			"fcitx5-frontend-gtk3", "fcitx5-frontend-gtk2", "fcitx5-frontend-gtk4",
 			"fcitx5-frontend-qt5", "fcitx5-frontend-qt6",
 		},

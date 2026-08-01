@@ -13,15 +13,6 @@ import (
 // provision-user command sets PATH to include the mise shims + brew, so plain
 // tool names resolve here.
 
-func (p *Provisioner) userPath() string {
-	return strings.Join([]string{
-		filepath.Join(p.Cfg.BrewPrefix, "bin"),
-		filepath.Join(p.Cfg.Home, ".local", "bin"),
-		filepath.Join(p.Cfg.Home, ".local", "share", "mise", "shims"),
-		os.Getenv("PATH"),
-	}, ":")
-}
-
 func (p *Provisioner) phaseHomebrew(*Provisioner) error {
 	brew := filepath.Join(p.Cfg.BrewPrefix, "bin", "brew")
 	if _, err := os.Stat(brew); err == nil {
@@ -73,6 +64,43 @@ func (p *Provisioner) phaseMiseTools(*Provisioner) error {
 	return err
 }
 
+// phaseMiseShims symlinks every mise shim into ~/.local/bin. Non-interactive,
+// non-login shells (how an Agent / SSH `bash -c` runs) do NOT read .bashrc or
+// .profile, and the BASH_ENV trick does not reach GUI-session processes (its
+// /etc/environment injection is PAM-login-only; systemd --user processes never
+// see it). ~/.local/bin, however, IS on the session PATH (via EnvDConf), so a
+// symlink there makes each mise-managed tool resolvable from every shell type.
+// Re-run this phase after installing new mise tools.
+func (p *Provisioner) phaseMiseShims(*Provisioner) error {
+	shims := filepath.Join(p.Cfg.Home, ".local", "share", "mise", "shims")
+	bin := filepath.Join(p.Cfg.Home, ".local", "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(shims)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		link := filepath.Join(shims, e.Name())
+		target := filepath.Join(bin, e.Name())
+		if cur, err := os.Readlink(target); err == nil && cur == link {
+			continue // already points at the shim
+		}
+		if st, err := os.Lstat(target); err == nil && st.Mode()&os.ModeSymlink == 0 {
+			return fmt.Errorf("%s exists and is not a symlink — refusing to overwrite", target)
+		}
+		_ = os.Remove(target)
+		if err := os.Symlink(link, target); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (p *Provisioner) phaseNPMGlobals(*Provisioner) error {
 	for _, pkg := range p.Cfg.NPMGlobals {
 		if _, err := p.Runner.Run("", "npm", "install", "-g", pkg); err != nil {
@@ -80,16 +108,6 @@ func (p *Provisioner) phaseNPMGlobals(*Provisioner) error {
 		}
 	}
 	return nil
-}
-
-func (p *Provisioner) phaseOpenCode(*Provisioner) error {
-	opencode := filepath.Join(p.Cfg.Home, ".local", "bin", "opencode")
-	if _, err := os.Stat(opencode); err == nil {
-		return nil
-	}
-	_, err := p.Runner.Run(p.Cfg.User, "bash", "-lc",
-		`curl -fsSL https://opencode.ai/install | bash`)
-	return err
 }
 
 func (p *Provisioner) phaseClaudeCode(*Provisioner) error {

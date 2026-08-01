@@ -30,28 +30,40 @@ type Phase struct {
 type Provisioner struct {
 	Cfg    config.Provision
 	Runner Runner
+
+	// cleanup is registered by phases that start a transient resource (e.g. the
+	// install-time proxy core) so it is torn down when RunAll returns — on any
+	// exit path. Co-located with the start so it can't be forgotten.
+	cleanup func()
 }
 
 // Phases returns the full phase list in execution order.
 func (p *Provisioner) Phases() []Phase {
 	return []Phase{
+		{Name: "apt-mirror", Run: p.phaseAptMirror},
 		{Name: "apt-update", Run: p.phaseAptUpdate},
 		{Name: "core-packages", FailFast: true, Run: p.phaseCorePackages},
+		// enpass-repo after core-packages so curl is available (it isn't on the
+		// minimal golden image before then).
+		{Name: "enpass-repo", Run: p.phaseEnpassRepo},
 		{Name: "docker-group", Run: p.phaseDockerGroup},
 		{Name: "gpu-drivers", Run: p.phaseGPUDrivers},
 		{Name: "cc-switch", Run: p.phaseCCSwitch},
+		{Name: "proxy-setup", Run: p.phaseProxySetup},
+		{Name: "homebrew-dir", Run: p.phaseBrewDir},
 		{Name: "homebrew", User: true, Run: p.phaseHomebrew},
 		{Name: "mise", User: true, Run: p.phaseMise},
 		{Name: "brew-packages", User: true, Run: p.phaseBrewPackages},
 		{Name: "mise-tools", User: true, Run: p.phaseMiseTools},
+		{Name: "mise-shims", User: true, Run: p.phaseMiseShims},
 		{Name: "npm-globals", User: true, Run: p.phaseNPMGlobals},
-		{Name: "opencode", User: true, Run: p.phaseOpenCode},
 		{Name: "claude-code", User: true, Run: p.phaseClaudeCode},
 		{Name: "gnome-theme", User: true, Run: p.phaseGnomeTheme},
 		{Name: "gnome-dock", User: true, Run: p.phaseGnomeDock},
 		{Name: "gnome-shortcuts", User: true, Run: p.phaseGnomeShortcuts},
 		{Name: "fcitx5", Run: p.phaseFcitx5},
 		{Name: "shell-env", Run: p.phaseShellEnv},
+		{Name: "default-apps", Run: p.phaseDefaultApps},
 		{Name: "git-config", User: true, Run: p.phaseGitConfig},
 		{Name: "dotfiles", User: true, Run: p.phaseDotfiles},
 		{Name: "mount-data-disks", Run: p.phaseMountDataDisks},
@@ -63,6 +75,13 @@ func (p *Provisioner) Phases() []Phase {
 // A FailFast phase error aborts the run immediately and is returned, so the
 // caller exits non-zero and systemd marks the oneshot failed (retryable).
 func (p *Provisioner) RunAll(selfPath string) error {
+	// Tear down any transient resources (install-time proxy core) no matter how
+	// the run ends — a FailFast abort included.
+	defer func() {
+		if p.cleanup != nil {
+			p.cleanup()
+		}
+	}()
 	for _, ph := range p.Phases() {
 		p.logPhase(ph.Name)
 		var err error

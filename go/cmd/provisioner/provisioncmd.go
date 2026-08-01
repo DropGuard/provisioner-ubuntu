@@ -65,13 +65,23 @@ func provisionUserCmd() *cobra.Command {
 				log.Printf("  [WARN] loading %s: %v (using built-in defaults)", paths.ConfigDir, err)
 				cfg = config.Default()
 			}
+			// This process IS the target user (spawned by the root run via sudo -u).
+			// Mark it so Runner skips redundant sudo inside the phases.
+			os.Setenv(provision.ProvisionUserReexecEnv, "1")
 			// Make brew/mise/npm resolvable for user phases.
 			os.Setenv("PATH", userToolPath(cfg)+":"+os.Getenv("PATH"))
 			if dotfiles := paths.DotfilesDir; dirExists(dotfiles) {
 				os.Setenv("PROVISIONER_DOTFILES", dotfiles)
 			}
 			p := &provision.Provisioner{Cfg: cfg, Runner: provision.ExecRunner{}}
-			return p.RunUserPhaseByName(args[0])
+			// Surface the phase's error on stderr so the root run's `sudo -u ...`
+			// captures it and the WARN shows WHY the user phase failed, not just
+			// the re-exec's exit status.
+			if err := p.RunUserPhaseByName(args[0]); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				return err
+			}
+			return nil
 		},
 	}
 }

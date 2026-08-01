@@ -30,7 +30,7 @@ func readAll(t *testing.T, p string) string {
 	return string(b)
 }
 
-// TestBuildFullRepo verifies a complete payload: binary + the four scripts
+// TestBuildFullRepo verifies a complete payload: binary + the shipped scripts
 // (with the payload filenames the late-commands reference) + config/ + dotfiles/.
 func TestBuildFullRepo(t *testing.T) {
 	repo := t.TempDir()
@@ -40,7 +40,6 @@ func TestBuildFullRepo(t *testing.T) {
 		"first-boot.service":      "[Unit]\n",
 		"setup-fcitx5-chinese.sh": "#!/bin/sh\n",
 		"fav.sh":                  "#!/bin/sh\n",
-		"test-env-loading.sh":     "#!/bin/sh\n",
 		"copy-to-usb.py":          "should not be copied\n", // not in the manifest
 	})
 	writeTree(t, filepath.Join(repo, "config"), map[string]string{
@@ -62,7 +61,7 @@ func TestBuildFullRepo(t *testing.T) {
 	}
 
 	for _, name := range []string{"provision", "first-boot.service",
-		"setup-fcitx5-chinese.sh", "fav.sh", "test-env-loading.sh"} {
+		"setup-fcitx5-chinese.sh", "fav.sh"} {
 		if _, err := os.Stat(filepath.Join(out, name)); err != nil {
 			t.Errorf("missing payload file %s: %v", name, err)
 		}
