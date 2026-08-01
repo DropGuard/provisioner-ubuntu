@@ -33,9 +33,16 @@ type Config struct {
 	Packages    []string
 	Snaps       []Snap
 	SSHAllowPW  bool
-	LateCommand []string // run chrooted to /target during the install
-	Reboot      bool     // shutdown action after install
+	EarlyCommand []string // run in the live session BEFORE the install starts
+	LateCommand []string  // run chrooted to /target during the install
+	Reboot      bool      // shutdown action after install
 }
+
+// AptMirror is the apt mirror used during the install (early-command rewrites
+// the live session's sources). Empty means "use the ISO's default"
+// (archive.ubuntu.com, which is very slow through this host's proxy path —
+// ~90KB/s vs ~1.6MB/s for mirrors.ustc.edu.cn).
+const AptMirror = "mirrors.ustc.edu.cn"
 
 // Default returns a Config matching the project's current autoinstall.yaml,
 // including the late-commands that had to be added because the 26.04 desktop
@@ -51,7 +58,17 @@ func Default() Config {
 		Timezone:   "Asia/Shanghai",
 		Keyboard:   "us",
 		DiskSerial: "50026B727200FDDC",
-		Packages:   []string{"openssh-server", "curl", "git", "build-essential"},
+		Packages: []string{
+			"openssh-server", "curl", "git", "build-essential",
+			"qemu-guest-agent", // enables QMP guest-exec on the installed system
+		},
+		// apt through the default archive.ubuntu.com is ~90KB/s via this host's
+		// proxy; the China mirror is ~18x faster. Rewrite the live session's
+		// sources so the install's package phase uses it.
+		EarlyCommand: []string{
+			"sed -i 's|http://archive.ubuntu.com/ubuntu/|http://" + AptMirror + "/ubuntu/|' /etc/apt/sources.list.d/ubuntu.sources",
+			"sed -i 's|http://security.ubuntu.com/ubuntu/|http://" + AptMirror + "/ubuntu-security/|' /etc/apt/sources.list.d/ubuntu.sources",
+		},
 		Snaps: []Snap{
 			{Name: "firefox"},
 			{Name: "obsidian"},

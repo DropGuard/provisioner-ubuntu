@@ -17,17 +17,18 @@ type doc struct {
 }
 
 type autoinstall struct {
-	Version   int        `yaml:"version"`
-	Identity  identity   `yaml:"identity"`
-	Locale    string     `yaml:"locale"`
-	Timezone  string     `yaml:"timezone"`
-	Keyboard  keyboard   `yaml:"keyboard"`
-	Storage   storage    `yaml:"storage"`
-	Packages  []string   `yaml:"packages"`
-	Snaps     []snap     `yaml:"snaps"`
-	SSH       sshConf    `yaml:"ssh"`
-	LateCmds  []string   `yaml:"late-commands"`
-	Shutdown  string     `yaml:"shutdown"`
+	Version    int        `yaml:"version"`
+	Identity   identity   `yaml:"identity"`
+	Locale     string     `yaml:"locale"`
+	Timezone   string     `yaml:"timezone"`
+	Keyboard   keyboard   `yaml:"keyboard"`
+	Storage    storage    `yaml:"storage"`
+	Packages   []string   `yaml:"packages"`
+	Snaps      []snap     `yaml:"snaps"`
+	SSH        sshConf    `yaml:"ssh"`
+	EarlyCmds  []string   `yaml:"early-commands,omitempty"`
+	LateCmds   []string   `yaml:"late-commands"`
+	Shutdown   string     `yaml:"shutdown"`
 }
 
 type identity struct {
@@ -88,11 +89,12 @@ func RenderUserData(c Config) (string, error) {
 			Grub:   grub{ReorderUEFI: false},
 			Swap:   swap{Size: 0},
 		},
-		Packages: c.Packages,
-		Snaps:    makeSnaps(c.Snaps),
-		SSH:      sshConf{InstallServer: true, AllowPW: c.SSHAllowPW},
-		LateCmds: c.LateCommand,
-		Shutdown: shutdownAction(c.Reboot),
+		Packages:   c.Packages,
+		Snaps:      makeSnaps(c.Snaps),
+		SSH:        sshConf{InstallServer: true, AllowPW: c.SSHAllowPW},
+		EarlyCmds:  c.EarlyCommand,
+		LateCmds:   c.LateCommand,
+		Shutdown:   shutdownAction(c.Reboot),
 	}}
 	b, err := yaml.Marshal(&d)
 	if err != nil {

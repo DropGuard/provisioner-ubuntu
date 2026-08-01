@@ -1,10 +1,12 @@
 package vmtest
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
 	"sync"
+	"time"
 )
 
 // QMP is a minimal QEMU Machine Protocol client (QMP over a unix socket).
@@ -107,4 +109,47 @@ func (q *QMP) TargetBytesWritten(deviceID string) (int64, error) {
 		}
 	}
 	return 0, fmt.Errorf("query-blockstats: device %q not found", deviceID)
+}
+
+// GuestExec runs a command inside the guest via the QEMU guest agent and
+// returns its combined stdout+stderr (needs qemu-guest-agent in the guest).
+func (q *QMP) GuestExec(execPath string, args []string, timeout time.Duration) (string, error) {
+	argsMap := map[string]any{"path": execPath, "capture-output": true}
+	if len(args) > 0 {
+		argsMap["arg"] = args
+	}
+	start, err := q.command("guest-exec", argsMap)
+	if err != nil {
+		return "", err
+	}
+	pid, ok := start["pid"].(float64)
+	if !ok {
+		return "", fmt.Errorf("guest-exec: no pid in %v", start)
+	}
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		st, err := q.command("guest-exec-status", map[string]any{"pid": int64(pid)})
+		if err != nil {
+			return "", err
+		}
+		if exited, _ := st["exited"].(bool); exited {
+			var out string
+			if od, ok := st["out-data"].(string); ok {
+				if b, err := base64.StdEncoding.DecodeString(od); err == nil {
+					out += string(b)
+				}
+			}
+			if od, ok := st["err-data"].(string); ok {
+				if b, err := base64.StdEncoding.DecodeString(od); err == nil {
+					out += string(b)
+				}
+			}
+			if exitcode, ok := st["exitcode"].(float64); ok && exitcode != 0 {
+				return out, fmt.Errorf("guest-exec %s exited %v", execPath, exitcode)
+			}
+			return out, nil
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	return "", fmt.Errorf("guest-exec %s: timed out after %v", execPath, timeout)
 }

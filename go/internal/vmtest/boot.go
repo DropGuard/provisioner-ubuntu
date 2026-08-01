@@ -104,6 +104,7 @@ func RunTest(opts TestOptions) (*TestResult, error) {
 		cdrom: repacked, target: opts.TargetDisk, serial: opts.DiskSerial,
 		console: consoleLog, timeout: opts.Timeout,
 		qmp: filepath.Join(opts.WorkDir, "qmp.sock"),
+		ga:  filepath.Join(opts.WorkDir, "ga.sock"),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("qemu: %w", err)
@@ -141,8 +142,8 @@ func seedPayloadFromDir(dir string) (map[string][]byte, error) {
 }
 
 type qemuOptions struct {
-	cdrom, target, serial, console, qmp string
-	timeout                             time.Duration
+	cdrom, target, serial, console, qmp, ga string
+	timeout                                time.Duration
 }
 
 func launchQEMU(o qemuOptions) (timedOut bool, err error) {
@@ -166,6 +167,14 @@ func launchQEMU(o qemuOptions) (timedOut bool, err error) {
 	}
 	if o.qmp != "" {
 		args = append(args, "-qmp", "unix:"+o.qmp+",server=on,wait=off")
+	}
+	if o.ga != "" {
+		// QEMU guest agent channel: host -> guest-exec via the guest's qemu-ga
+		// (installed in the target via the qemu-guest-agent package).
+		args = append(args,
+			"-chardev", "socket,path="+o.ga+",server=on,wait=off,id=ga0",
+			"-device", "virtio-serial-pci",
+			"-device", "virtserialport,chardev=ga0,name=org.qemu.guest_agent.0")
 	}
 	cmd := exec.Command("qemu-system-x86_64", args...)
 	cmd.Stdout = os.Stderr
