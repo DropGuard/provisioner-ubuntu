@@ -11,9 +11,22 @@ import (
 // (a hand-written text/template silently emitted unindented continuation lines,
 // which made subiquity choke and sit in state WAITING forever).
 
-// doc is the root of the user-data document.
+// doc is the root of the user-data document. `apt` is consumed by cloud-init's
+// apt module (sets the primary mirror for both the live session and the target
+// install); `autoinstall` is consumed by subiquity.
 type doc struct {
 	Autoinstall autoinstall `yaml:"autoinstall"`
+	Apt         *aptConf    `yaml:"apt,omitempty"`
+}
+
+type aptConf struct {
+	Primary  []aptMirror `yaml:"primary"`
+	Security []aptMirror `yaml:"security,omitempty"`
+}
+
+type aptMirror struct {
+	Arches []string `yaml:"arches"`
+	URI    string   `yaml:"uri"`
 }
 
 type autoinstall struct {
@@ -78,7 +91,9 @@ type sshConf struct {
 // reads). The result always begins with EXACTLY "#cloud-config\n" — cloud-init
 // does not recognize "# cloud-config" and would silently drop the config.
 func RenderUserData(c Config) (string, error) {
-	d := doc{Autoinstall: autoinstall{
+	d := doc{
+		Apt: aptConfFor(c.AptMirror),
+		Autoinstall: autoinstall{
 		Version:  1,
 		Identity: identity{Hostname: c.Identity.Hostname, Username: c.Identity.Username, PasswordHash: c.Identity.PasswordHash},
 		Locale:   c.Locale,
@@ -95,12 +110,24 @@ func RenderUserData(c Config) (string, error) {
 		EarlyCmds:  c.EarlyCommand,
 		LateCmds:   c.LateCommand,
 		Shutdown:   shutdownAction(c.Reboot),
-	}}
+		},
+	}
 	b, err := yaml.Marshal(&d)
 	if err != nil {
 		return "", fmt.Errorf("marshal user-data: %w", err)
 	}
 	return "#cloud-config\n" + string(b), nil
+}
+
+// aptConfFor builds the cloud-init apt mirror config, or nil if no mirror set.
+func aptConfFor(mirror string) *aptConf {
+	if mirror == "" {
+		return nil
+	}
+	return &aptConf{
+		Primary:  []aptMirror{{Arches: []string{"default"}, URI: "http://" + mirror + "/ubuntu/"}},
+		Security: []aptMirror{{Arches: []string{"default"}, URI: "http://" + mirror + "/ubuntu-security/"}},
+	}
 }
 
 func makeSnaps(snaps []Snap) []snap {

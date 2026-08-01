@@ -33,16 +33,11 @@ type Config struct {
 	Packages    []string
 	Snaps       []Snap
 	SSHAllowPW  bool
+	AptMirror   string   // primary apt mirror for the install (cloud-init apt: module)
 	EarlyCommand []string // run in the live session BEFORE the install starts
 	LateCommand []string  // run chrooted to /target during the install
 	Reboot      bool      // shutdown action after install
 }
-
-// AptMirror is the apt mirror used during the install (early-command rewrites
-// the live session's sources). Empty means "use the ISO's default"
-// (archive.ubuntu.com, which is very slow through this host's proxy path —
-// ~90KB/s vs ~1.6MB/s for mirrors.ustc.edu.cn).
-const AptMirror = "mirrors.ustc.edu.cn"
 
 // Default returns a Config matching the project's current autoinstall.yaml,
 // including the late-commands that had to be added because the 26.04 desktop
@@ -62,34 +57,10 @@ func Default() Config {
 			"openssh-server", "curl", "git", "build-essential",
 			"qemu-guest-agent", // enables QMP guest-exec on the installed system
 		},
-		// The live session ships NO apt sources (verified: /etc/apt/sources.list.d
-		// is empty); subiquity generates the target's sources, defaulting to the
-		// slow archive.ubuntu.com (~90KB/s via this host's proxy vs ~1.6MB/s for
-		// the China mirror). Write the sources file up front so subiquity carries
-		// the mirror into the target's package phase.
-		EarlyCommand: []string{
-			"mkdir -p /etc/apt/sources.list.d",
-			`cat > /etc/apt/sources.list.d/ubuntu.sources << 'EOF'
-Types: deb
-URIs: http://` + AptMirror + `/ubuntu/
-Suites: resolute resolute-updates resolute-backports
-Components: main universe restricted multiverse
-Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-
-Types: deb
-URIs: http://` + AptMirror + `/ubuntu-security/
-Suites: resolute-security
-Components: main universe restricted multiverse
-Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-EOF
-# Verify the mirror actually works; roll back to the (empty) default sources
-# if apt-get update fails, so we never break the install on a bad mirror.
-if ! apt-get update -qq; then
-  rm -f /etc/apt/sources.list.d/ubuntu.sources
-  echo "provisioner-ubuntu: mirror apt-get update failed — rolled back to default sources"
-fi
-`,
-		},
+		// The install's primary mirror is set via cloud-init's `apt:` module
+		// (rendered into user-data). archive.ubuntu.com is ~90KB/s via this
+		// host's proxy vs ~1.6MB/s for the China mirror.
+		AptMirror: "mirrors.ustc.edu.cn",
 		Snaps: []Snap{
 			{Name: "firefox"},
 			{Name: "obsidian"},
