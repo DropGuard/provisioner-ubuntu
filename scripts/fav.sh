@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# fav.sh — copy the given image into ~/Pictures/Favorites.
+# fav.sh — copy the given image into ~/Pictures.
 #
 # If a file with the same name already exists in the target, do nothing
 # (no overwrite, no error). Designed to be bound to a hotkey in an image
@@ -25,7 +25,7 @@ if [[ ! -f "${src}" ]]; then
     exit 1
 fi
 
-dest_dir="${FAV_DIR:-$HOME/Pictures/Favorites}"
+dest_dir="${FAV_DIR:-$HOME/Pictures}"
 mkdir -p "${dest_dir}"
 
 base="$(basename "${src}")"

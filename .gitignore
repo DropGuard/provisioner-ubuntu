@@ -4,3 +4,4 @@ __pycache__/
 
 # Secrets — never commit
 config/github_token.txt.txt
+config/proxy-subscription.txt
