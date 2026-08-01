@@ -19,7 +19,11 @@ import (
 type Phase struct {
 	Name string // short name, used for the provision-user subcommand
 	User bool   // true => runs as the target user via self re-exec
-	Run  func(*Provisioner) error
+	// FailFast aborts the whole run (and the process exits non-zero) if the
+	// phase errors. Only reserved for the critical path — everything else is
+	// best-effort with a warning.
+	FailFast bool
+	Run      func(*Provisioner) error
 }
 
 // Provisioner carries the config + runner used by the phases.
@@ -32,7 +36,7 @@ type Provisioner struct {
 func (p *Provisioner) Phases() []Phase {
 	return []Phase{
 		{Name: "apt-update", Run: p.phaseAptUpdate},
-		{Name: "core-packages", Run: p.phaseCorePackages},
+		{Name: "core-packages", FailFast: true, Run: p.phaseCorePackages},
 		{Name: "docker-group", Run: p.phaseDockerGroup},
 		{Name: "gpu-drivers", Run: p.phaseGPUDrivers},
 		{Name: "cc-switch", Run: p.phaseCCSwitch},
@@ -56,7 +60,9 @@ func (p *Provisioner) Phases() []Phase {
 }
 
 // RunAll runs every phase. selfPath is the binary to re-exec for user phases.
-func (p *Provisioner) RunAll(selfPath string) {
+// A FailFast phase error aborts the run immediately and is returned, so the
+// caller exits non-zero and systemd marks the oneshot failed (retryable).
+func (p *Provisioner) RunAll(selfPath string) error {
 	for _, ph := range p.Phases() {
 		p.logPhase(ph.Name)
 		var err error
@@ -66,9 +72,13 @@ func (p *Provisioner) RunAll(selfPath string) {
 			err = ph.Run(p)
 		}
 		if err != nil {
+			if ph.FailFast {
+				return fmt.Errorf("phase %s: %w", ph.Name, err)
+			}
 			log.Printf("  [WARN] phase %s: %v", ph.Name, err)
 		}
 	}
+	return nil
 }
 
 // RunUserPhaseByName runs a single user-owned phase (from the provision-user

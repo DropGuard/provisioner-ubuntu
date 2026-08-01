@@ -49,9 +49,16 @@ func deriveXorrisoParams(isoPath string) (xorrisoParams, error) {
 	if err != nil {
 		return xorrisoParams{}, fmt.Errorf("xorriso report: %w", err)
 	}
+	return parseXorrisoReport(string(out))
+}
+
+// parseXorrisoReport parses the output of `xorriso -indev ISO
+// -report_el_torito as_mkisofs`. Pure function (unit-testable without an ISO);
+// deriveXorrisoParams shells out and delegates here.
+func parseXorrisoReport(report string) (xorrisoParams, error) {
 	var p xorrisoParams
 	bls := []string{}
-	for _, line := range strings.Split(string(out), "\n") {
+	for _, line := range strings.Split(report, "\n") {
 		line = strings.TrimRight(line, "\r")
 		if m := reVol.FindStringSubmatch(line); m != nil {
 			p.vol = m[1]
@@ -76,7 +83,7 @@ func deriveXorrisoParams(isoPath string) (xorrisoParams, error) {
 		p.eltoritoBLS = bls[0]
 	}
 	if p.vol == "" || p.grub2Mbr == "" || p.appendUUID == "" || p.efiBLS == "" {
-		return xorrisoParams{}, fmt.Errorf("could not parse boot parameters from %s", isoPath)
+		return xorrisoParams{}, fmt.Errorf("could not parse boot parameters")
 	}
 	return p, nil
 }
@@ -239,4 +246,3 @@ func repackWithXorriso(p xorrisoParams, tree, outISO string) error {
 	}
 	return nil
 }
-

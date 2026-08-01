@@ -121,11 +121,17 @@ func (p *Provisioner) phaseGnomeTheme(*Provisioner) error {
 }
 
 func (p *Provisioner) phaseGnomeDock(*Provisioner) error {
-	favs := "[" + strings.Join(mapSlice(p.Cfg.DockFavorites, func(s string) string {
+	_, err := p.Runner.Run(p.Cfg.User, "gsettings", "set", "org.gnome.shell", "favorite-apps", favoritesExpr(p.Cfg.DockFavorites))
+	return err
+}
+
+// favoritesExpr renders the GVariant array literal gsettings expects for
+// org.gnome.shell favorite-apps: each entry single-quoted, comma-separated,
+// wrapped in [ ] (e.g. "['a.desktop', 'b.desktop']").
+func favoritesExpr(apps []string) string {
+	return "[" + strings.Join(mapSlice(apps, func(s string) string {
 		return "'" + s + "'"
 	}), ", ") + "]"
-	_, err := p.Runner.Run(p.Cfg.User, "gsettings", "set", "org.gnome.shell", "favorite-apps", favs)
-	return err
 }
 
 func (p *Provisioner) phaseGnomeShortcuts(*Provisioner) error {

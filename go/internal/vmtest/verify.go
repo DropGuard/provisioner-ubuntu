@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/diskfs/go-diskfs"
@@ -17,6 +18,8 @@ import (
 	"github.com/diskfs/go-diskfs/filesystem"
 	"github.com/lima-vm/go-qcow2reader"
 	"github.com/lima-vm/go-qcow2reader/image"
+
+	"provisioner-ubuntu/internal/autoinstall"
 )
 
 // readerAtFile adapts the qcow2 virtual-disk io.ReaderAt (from
@@ -52,18 +55,18 @@ func (f *readerAtFile) Close() error               { return nil }
 
 type statInfo struct{ size int64 }
 
-func (statInfo) Name() string              { return "disk" }
-func (s statInfo) Size() int64             { return s.size }
-func (statInfo) Mode() fs.FileMode         { return 0 }
-func (statInfo) ModTime() time.Time        { return time.Time{} }
-func (statInfo) IsDir() bool               { return false }
-func (statInfo) Sys() any                  { return nil }
+func (statInfo) Name() string       { return "disk" }
+func (s statInfo) Size() int64      { return s.size }
+func (statInfo) Mode() fs.FileMode  { return 0 }
+func (statInfo) ModTime() time.Time { return time.Time{} }
+func (statInfo) IsDir() bool        { return false }
+func (statInfo) Sys() any           { return nil }
 
 // Partition describes one partition of the installed disk.
 type Partition struct {
-	Index int   // 1-based, as go-diskfs expects
+	Index int    // 1-based, as go-diskfs expects
 	Type  string // filesystem type name, e.g. "ext4"
-	Start int64 // byte offset on the virtual disk
+	Start int64  // byte offset on the virtual disk
 	Size  int64
 }
 
@@ -145,4 +148,72 @@ func (v *Verifier) ReadFile(partIndex int, path string) ([]byte, error) {
 		return nil, fmt.Errorf("read %q on part %d: %w", path, partIndex, err)
 	}
 	return b, nil
+}
+
+// InstalledDisk is what the install assertions read from. Verifier implements
+// it; tests substitute a fake so the assertion logic runs without a qcow2.
+type InstalledDisk interface {
+	Partitions() ([]Partition, error)
+	FindPartition(filesystem.Type) (int, error)
+	ReadFile(partIndex int, path string) ([]byte, error)
+}
+
+// InstallChecks are the values AssertInstall verifies against the installed
+// system. Zero value uses the autoinstall Default() expectations.
+type InstallChecks struct {
+	Hostname string
+	User     string
+}
+
+// InstallCheck verifies a single file assertion.
+type InstallCheck struct {
+	Path string // io/fs-relative, e.g. "etc/hostname"
+	Want string // substring the file must contain
+}
+
+// AssertInstall asserts the autoinstall actually succeeded on the installed
+// disk: exactly one ESP + one ext4 root partition, and the files that the
+// installer/late-commands must have produced. Returns a descriptive error on
+// the first failure. Empty checks fall back to the autoinstall Default()
+// identity (so the assertions stay in sync if the username/hostname change).
+func AssertInstall(d InstalledDisk, checks InstallChecks) error {
+	def := autoinstall.Default()
+	if checks.Hostname == "" {
+		checks.Hostname = def.Identity.Hostname
+	}
+	if checks.User == "" {
+		checks.User = def.Identity.Username
+	}
+
+	parts, err := d.Partitions()
+	if err != nil {
+		return fmt.Errorf("partitions: %w", err)
+	}
+	if len(parts) != 2 {
+		return fmt.Errorf("expected 2 partitions (ESP + ext4 root), got %d", len(parts))
+	}
+	ext, err := d.FindPartition(filesystem.TypeExt4)
+	if err != nil {
+		return fmt.Errorf("find ext4 root: %w", err)
+	}
+	if ext < 0 {
+		return fmt.Errorf("no ext4 partition found (install did not write a root fs)")
+	}
+
+	files := []InstallCheck{
+		{Path: "etc/hostname", Want: checks.Hostname},
+		{Path: "etc/locale.conf", Want: "LANG="},
+		{Path: "etc/passwd", Want: checks.User},
+		{Path: "var/lib/dpkg/status", Want: "Package: openssh-server"},
+	}
+	for _, fc := range files {
+		b, err := d.ReadFile(ext, fc.Path)
+		if err != nil {
+			return fmt.Errorf("%s: %w", fc.Path, err)
+		}
+		if !strings.Contains(string(b), fc.Want) {
+			return fmt.Errorf("%s does not contain %q", fc.Path, fc.Want)
+		}
+	}
+	return nil
 }

@@ -45,12 +45,12 @@ func (f *readerAtFile) Close() error               { return nil }
 
 type statInfo struct{ size int64 }
 
-func (statInfo) Name() string     { return "disk" }
-func (s statInfo) Size() int64    { return s.size }
-func (statInfo) Mode() fs.FileMode { return 0 }
+func (statInfo) Name() string       { return "disk" }
+func (s statInfo) Size() int64      { return s.size }
+func (statInfo) Mode() fs.FileMode  { return 0 }
 func (statInfo) ModTime() time.Time { return time.Time{} }
-func (statInfo) IsDir() bool      { return false }
-func (statInfo) Sys() any         { return nil }
+func (statInfo) IsDir() bool        { return false }
+func (statInfo) Sys() any           { return nil }
 
 func main() {
 	if len(os.Args) != 2 {

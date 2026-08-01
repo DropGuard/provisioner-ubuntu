@@ -22,10 +22,13 @@ The Go module lives in `go/`:
 | Command | What it does |
 |---|---|
 | `cd go && go test ./...` | Run all unit tests |
+| `cd go && go test ./internal/autoinstall -run TestUserDataGolden -update` | Regenerate the golden user-data snapshot after an intentional change |
 | `cd go && go vet ./...` | Vet |
 | `cd go && go build -o /tmp/p ./cmd/provisioner` | Build the CLI |
 | `/tmp/p config-gen` | Render user-data + grub.cfg from the typed config |
+| `/tmp/p build-payload` | Assemble the nocloud seed payload (binary + scripts + config + dotfiles) |
 | `/tmp/p test-vm --iso … --payload …` | Validate autoinstall end-to-end in a KVM VM (no root) |
+| `/tmp/p verify-disk --disk target.qcow2` | Assert an installed qcow2 is a successful autoinstall (pure Go, no root) |
 | `sudo /tmp/p provision` | Run first-boot provisioning (root; user phases self re-exec) |
 | `sudo /tmp/p usb --iso … --disk /dev/sdX` | Build a bootable autoinstall USB |
 
@@ -47,7 +50,7 @@ scripts/                  bash (reference/superseded):
   first-boot.service      — still deployed (runs the Go provisioner as /usr/local/bin/provision)
   provision.sh, prepare-usb.sh, test-vm.sh, analyze-install-log.sh — superseded by Go
 autoinstall/              the bash-era config + grub template (superseded by Go config)
-config/                   apt/brew/mise lists (mirrored into internal/config)
+config/                   apt/brew/mise lists (single source of truth; provision reads them at runtime)
 dotfiles/                 copied to /home/dailyuser during provisioning
 ```
 
@@ -74,6 +77,7 @@ The host's proxy (clash) path to `archive.ubuntu.com` was measured at ~90 KB/s, 
 - **Go provisioner self re-exec** — user-owned phases run via `sudo -u dailyuser <binary> provision-user <phase>`; the re-entered process runs with the right HOME/USER and PATH (brew/mise shims).
 - **Runner interface** — provision phases take a `Runner` so orchestration + idempotency are unit-testable with a fake.
 - **Idempotent everywhere** — each provision phase checks "already done?" before acting (dpkg -s, file existence, brew list, etc.).
-- **Error tiers** — core apt packages fail-fast; everything else best-effort with warnings.
+- **Error tiers** — core apt packages fail-fast (the whole run aborts and the oneshot service is marked failed); everything else best-effort with warnings.
+- **Git identity via env** — `phaseGitConfig` reads `GIT_USER_NAME`/`GIT_USER_EMAIL` from the environment; nothing sets them by default, so git user.name/user.email are only written when these are exported (e.g. in `first-boot.service`) before provisioning runs.
 - **No LUKS** — single-user desktop scope.
 - **Password "1" + GDM auto-login** — sudo still needs the password.

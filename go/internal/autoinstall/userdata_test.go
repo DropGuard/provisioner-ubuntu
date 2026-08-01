@@ -1,11 +1,53 @@
 package autoinstall
 
 import (
+	"flag"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
 )
+
+// -update regenerates the golden user-data snapshot (see TestUserDataGolden).
+var update = flag.Bool("update", false, "rewrite golden files")
+
+func goldenPath(t *testing.T) string {
+	t.Helper()
+	return filepath.Join("testdata", "user-data.golden")
+}
+
+// TestUserDataGolden is a full-output snapshot test: the entire rendered
+// user-data must byte-match the committed golden file. A configuration change
+// that alters the installer input shows up here on every CI run instead of
+// surfacing only in a VM install. Regenerate intentionally with -update.
+func TestUserDataGolden(t *testing.T) {
+	c := Default()
+	c.Identity.PasswordHash = "$6$testsalt$hash" // placeholder hash, stable across runs
+	got, err := RenderUserData(c)
+	if err != nil {
+		t.Fatalf("RenderUserData: %v", err)
+	}
+	p := goldenPath(t)
+	if *update {
+		if err := os.WriteFile(p, []byte(got), 0o644); err != nil {
+			t.Fatalf("write golden: %v", err)
+		}
+		t.Logf("golden updated: %s", p)
+		return
+	}
+	want, err := os.ReadFile(p)
+	if err != nil {
+		if os.IsNotExist(err) {
+			t.Fatalf("golden file missing (%s); run `go test ./internal/autoinstall -run TestUserDataGolden -update` to generate", p)
+		}
+		t.Fatalf("read golden: %v", err)
+	}
+	if got != string(want) {
+		t.Errorf("user-data drifted from golden (%s). If the change is intentional, regenerate with -update.\n--- golden ---\n%s\n--- got ---\n%s", p, want, got)
+	}
+}
 
 func testConfig() Config {
 	c := Default()

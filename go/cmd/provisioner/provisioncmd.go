@@ -3,11 +3,13 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/spf13/cobra"
 
 	"provisioner-ubuntu/internal/config"
+	"provisioner-ubuntu/internal/paths"
 	"provisioner-ubuntu/internal/provision"
 )
 
@@ -25,13 +27,22 @@ func provisionCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			cfg := config.Default()
-			cfg.Fcitx5SetupPath = "/usr/local/bin/setup-fcitx5-chinese.sh"
-			if dotfiles := "/usr/local/share/provisioner-ubuntu/dotfiles"; dirExists(dotfiles) {
+			cfg, err := config.Load(paths.ConfigDir)
+			if err != nil {
+				log.Printf("  [WARN] loading %s: %v (using built-in defaults)", paths.ConfigDir, err)
+				cfg = config.Default()
+			}
+			cfg.Fcitx5SetupPath = paths.Fcitx5Script
+			if dotfiles := paths.DotfilesDir; dirExists(dotfiles) {
 				os.Setenv("PROVISIONER_DOTFILES", dotfiles)
 			}
 			p := &provision.Provisioner{Cfg: cfg, Runner: provision.ExecRunner{}}
-			p.RunAll(self)
+			// A FailFast phase error propagates here, so the oneshot service is
+			// marked failed and can be retried with `systemctl restart
+			// first-boot.service` after fixing the cause.
+			if err := p.RunAll(self); err != nil {
+				return err
+			}
 			return nil
 		},
 	}
@@ -49,10 +60,14 @@ func provisionUserCmd() *cobra.Command {
 			if os.Geteuid() == 0 {
 				return errors.New("provision-user must NOT run as root")
 			}
-			cfg := config.Default()
+			cfg, err := config.Load(paths.ConfigDir)
+			if err != nil {
+				log.Printf("  [WARN] loading %s: %v (using built-in defaults)", paths.ConfigDir, err)
+				cfg = config.Default()
+			}
 			// Make brew/mise/npm resolvable for user phases.
 			os.Setenv("PATH", userToolPath(cfg)+":"+os.Getenv("PATH"))
-			if dotfiles := "/usr/local/share/provisioner-ubuntu/dotfiles"; dirExists(dotfiles) {
+			if dotfiles := paths.DotfilesDir; dirExists(dotfiles) {
 				os.Setenv("PROVISIONER_DOTFILES", dotfiles)
 			}
 			p := &provision.Provisioner{Cfg: cfg, Runner: provision.ExecRunner{}}

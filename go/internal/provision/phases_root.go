@@ -8,9 +8,16 @@ import (
 	"strings"
 )
 
+// installed reports whether pkg is actually installed. `dpkg -s` exits 0 even
+// for packages left in "deinstall ok config-files" state (removed but config
+// retained), so it must not be used for idempotency checks — that would skip
+// re-installing a half-removed package. Match the exact status string instead.
 func (p *Provisioner) installed(pkg string) bool {
-	_, err := p.Runner.Run("", "dpkg", "-s", pkg)
-	return err == nil
+	out, err := p.Runner.Run("", "dpkg-query", "-W", "-f=${Status}", pkg)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(out, "install ok installed")
 }
 
 func (p *Provisioner) phaseAptUpdate(*Provisioner) error {

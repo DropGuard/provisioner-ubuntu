@@ -167,7 +167,7 @@ func seedPayloadFromDir(dir string) (map[string][]byte, error) {
 
 type qemuOptions struct {
 	cdrom, target, serial, console, qmp, ga string
-	timeout                                time.Duration
+	timeout                                 time.Duration
 }
 
 // launchQEMU starts qemu and returns a channel delivering cmd.Wait()'s error
@@ -215,10 +215,10 @@ func launchQEMU(o qemuOptions) (waitCh <-chan error, kill func(), err error) {
 
 // BootOptions for BootInstalled.
 type BootOptions struct {
-	Disk      string // the installed qcow2 (or an overlay) to boot
-	WorkDir   string
-	Serial    string
-	Timeout   time.Duration
+	Disk    string // the installed qcow2 (or an overlay) to boot
+	WorkDir string
+	Serial  string
+	Timeout time.Duration
 }
 
 // BootInstalled boots an existing installed system (the autoinstall output, or

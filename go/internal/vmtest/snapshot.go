@@ -21,7 +21,7 @@ type ValidateProvisionOptions struct {
 	BaseDisk  string // clean installed system (the install output)
 	WorkDir   string
 	Serial    string
-	Timeout   int // per-phase boot timeout (seconds)
+	Timeout   int    // per-phase boot timeout (seconds)
 	PhaseUser string // "dailyuser"
 }
 

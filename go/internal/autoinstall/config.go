@@ -9,6 +9,12 @@
 //     "\;" — an unescaped ';' makes grub truncate the cmdline.
 package autoinstall
 
+import (
+	"fmt"
+
+	"provisioner-ubuntu/internal/paths"
+)
+
 // Identity configures the user created by the installer.
 type Identity struct {
 	Hostname     string
@@ -25,19 +31,19 @@ type Snap struct {
 // Config is the typed autoinstall configuration. It mirrors the fields of
 // autoinstall/autoinstall.yaml.
 type Config struct {
-	Identity    Identity
-	Locale      string
-	Timezone    string
-	Keyboard    string
-	DiskSerial  string
-	Packages    []string
-	Snaps       []Snap
-	SSHAllowPW  bool
-	AptMirror   string   // primary apt mirror for the install (cloud-init apt: module)
-	AptProxy    string   // apt proxy (e.g. host apt-cacher-ng at 10.0.2.2:3142); empty = none
+	Identity     Identity
+	Locale       string
+	Timezone     string
+	Keyboard     string
+	DiskSerial   string
+	Packages     []string
+	Snaps        []Snap
+	SSHAllowPW   bool
+	AptMirror    string   // primary apt mirror for the install (cloud-init apt: module)
+	AptProxy     string   // apt proxy (e.g. host apt-cacher-ng at 10.0.2.2:3142); empty = none
 	EarlyCommand []string // run in the live session BEFORE the install starts
-	LateCommand []string  // run chrooted to /target during the install
-	Reboot      bool      // shutdown action after install
+	LateCommand  []string // run chrooted to /target during the install
+	Reboot       bool     // shutdown action after install
 }
 
 // Default returns a Config matching the project's current autoinstall.yaml,
@@ -81,16 +87,18 @@ func Default() Config {
 			"cat > /target/etc/gdm3/custom.conf << 'EOF'\n[daemon]\nAutomaticLoginEnable=true\nAutomaticLogin=dailyuser\nEOF",
 			// Copy payload into the installed system. `provision` is the Go
 			// provisioner binary; first-boot.service runs it as /usr/local/bin/provision.
-			"mkdir -p /target/usr/local/share/provisioner-ubuntu/config /target/usr/local/share/provisioner-ubuntu/dotfiles",
-			"cp /cdrom/nocloud/provision /target/usr/local/bin/provision",
-			"cp /cdrom/nocloud/test-env-loading.sh /target/usr/local/bin/test-env-loading",
-			"cp /cdrom/nocloud/fav.sh /target/usr/local/bin/fav 2>/dev/null || true",
-			"cp /cdrom/nocloud/setup-fcitx5-chinese.sh /target/usr/local/bin/setup-fcitx5-chinese.sh",
-			"cp -a /cdrom/nocloud/config/. /target/usr/local/share/provisioner-ubuntu/config/ 2>/dev/null || true",
-			"cp -a /cdrom/nocloud/dotfiles/. /target/usr/local/share/provisioner-ubuntu/dotfiles/ 2>/dev/null || true",
-			"chmod +x /target/usr/local/bin/provision /target/usr/local/bin/test-env-loading /target/usr/local/bin/fav /target/usr/local/bin/setup-fcitx5-chinese.sh 2>/dev/null || true",
+			fmt.Sprintf("mkdir -p %s %s", "/target"+paths.ConfigDir, "/target"+paths.DotfilesDir),
+			fmt.Sprintf("cp /cdrom/nocloud/provision %s", "/target"+paths.ProvisionBin),
+			fmt.Sprintf("cp /cdrom/nocloud/test-env-loading.sh %s", "/target"+paths.TestEnvLoadingBin),
+			fmt.Sprintf("cp /cdrom/nocloud/fav.sh %s 2>/dev/null || true", "/target"+paths.FavBin),
+			fmt.Sprintf("cp /cdrom/nocloud/setup-fcitx5-chinese.sh %s", "/target"+paths.Fcitx5Script),
+			fmt.Sprintf("cp -a /cdrom/nocloud/config/. %s/ 2>/dev/null || true", "/target"+paths.ConfigDir),
+			fmt.Sprintf("cp -a /cdrom/nocloud/dotfiles/. %s/ 2>/dev/null || true", "/target"+paths.DotfilesDir),
+			fmt.Sprintf("chmod +x %s %s %s %s 2>/dev/null || true",
+				"/target"+paths.ProvisionBin, "/target"+paths.TestEnvLoadingBin,
+				"/target"+paths.FavBin, "/target"+paths.Fcitx5Script),
 			// First-boot provisioning service.
-			"cp /cdrom/nocloud/first-boot.service /target/etc/systemd/system/first-boot.service",
+			fmt.Sprintf("cp /cdrom/nocloud/first-boot.service %s", "/target"+paths.FirstBootUnit),
 			"curtin in-target --target=/target -- systemctl enable first-boot.service",
 		},
 	}

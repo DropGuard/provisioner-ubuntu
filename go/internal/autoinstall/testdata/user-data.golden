@@ -1,0 +1,66 @@
+#cloud-config
+autoinstall:
+    version: 1
+    identity:
+        hostname: ubuntu
+        username: dailyuser
+        password: $6$testsalt$hash
+    locale: en_US.UTF-8
+    timezone: Asia/Shanghai
+    keyboard:
+        layout: us
+    storage:
+        layout:
+            name: direct
+            match:
+                serial: 50026B727200FDDC
+        grub:
+            reorder_uefi: false
+        swap:
+            size: 0
+    packages:
+        - openssh-server
+        - curl
+        - git
+        - build-essential
+        - qemu-guest-agent
+    snaps:
+        - name: firefox
+        - name: obsidian
+        - name: code
+          classic: true
+    ssh:
+        install-server: true
+        allow-pw: true
+    late-commands:
+        - echo 'LANG=en_US.UTF-8' > /target/etc/locale.conf
+        - sed -i 's/^# en_US.UTF-8/en_US.UTF-8/' /target/etc/locale.gen
+        - curtin in-target --target=/target -- locale-gen
+        - ln -sf /usr/share/zoneinfo/Asia/Shanghai /target/etc/localtime
+        - curtin in-target --target=/target -- bash -c 'printf "tzdata tzdata/Areas select Asia\ntzdata tzdata/Zones/Asia select Shanghai\n" | debconf-set-selections'
+        - |-
+          cat > /target/etc/gdm3/custom.conf << 'EOF'
+          [daemon]
+          AutomaticLoginEnable=true
+          AutomaticLogin=dailyuser
+          EOF
+        - mkdir -p /target/usr/local/share/provisioner-ubuntu/config /target/usr/local/share/provisioner-ubuntu/dotfiles
+        - cp /cdrom/nocloud/provision /target/usr/local/bin/provision
+        - cp /cdrom/nocloud/test-env-loading.sh /target/usr/local/bin/test-env-loading
+        - cp /cdrom/nocloud/fav.sh /target/usr/local/bin/fav 2>/dev/null || true
+        - cp /cdrom/nocloud/setup-fcitx5-chinese.sh /target/usr/local/bin/setup-fcitx5-chinese.sh
+        - cp -a /cdrom/nocloud/config/. /target/usr/local/share/provisioner-ubuntu/config/ 2>/dev/null || true
+        - cp -a /cdrom/nocloud/dotfiles/. /target/usr/local/share/provisioner-ubuntu/dotfiles/ 2>/dev/null || true
+        - chmod +x /target/usr/local/bin/provision /target/usr/local/bin/test-env-loading /target/usr/local/bin/fav /target/usr/local/bin/setup-fcitx5-chinese.sh 2>/dev/null || true
+        - cp /cdrom/nocloud/first-boot.service /target/etc/systemd/system/first-boot.service
+        - curtin in-target --target=/target -- systemctl enable first-boot.service
+    shutdown: reboot
+apt:
+    primary:
+        - arches:
+            - default
+          uri: http://mirrors.ustc.edu.cn/ubuntu/
+    security:
+        - arches:
+            - default
+          uri: http://mirrors.ustc.edu.cn/ubuntu-security/

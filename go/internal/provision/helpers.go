@@ -123,17 +123,8 @@ func (p *Provisioner) phaseMountDataDisks(*Provisioner) error {
 		if strings.Contains(string(fstab), "UUID="+uuid) {
 			continue
 		}
-		label := sanitize(serial)
-		if len(label) > 8 {
-			label = label[len(label)-8:]
-		}
-		mnt := "/mnt/data-" + label
+		mnt, line := fstabEntry(uuid, serial, ptype)
 		os.MkdirAll(mnt, 0o755)
-		opts := "defaults,nofail,uid=1000,gid=1000,x-systemd.automount"
-		if ptype == "ntfs" {
-			opts = "defaults,nofail,uid=1000,gid=1000,umask=022,windows_names,x-systemd.automount"
-		}
-		line := fmt.Sprintf("UUID=%s %s %s %s 0 2\n", uuid, mnt, ptype, opts)
 		f, err := os.OpenFile("/etc/fstab", os.O_APPEND|os.O_WRONLY, 0o644)
 		if err != nil {
 			return err
@@ -145,6 +136,22 @@ func (p *Provisioner) phaseMountDataDisks(*Provisioner) error {
 		}
 	}
 	return nil
+}
+
+// fstabEntry builds the mount point and fstab line for one data disk. Pure
+// function (unit-testable): the mountpoint is derived from the last 8 chars of
+// the sanitized serial, and NTFS gets windows-friendly options.
+func fstabEntry(uuid, serial, ptype string) (mnt, line string) {
+	label := sanitize(serial)
+	if len(label) > 8 {
+		label = label[len(label)-8:]
+	}
+	mnt = "/mnt/data-" + label
+	opts := "defaults,nofail,uid=1000,gid=1000,x-systemd.automount"
+	if ptype == "ntfs" {
+		opts = "defaults,nofail,uid=1000,gid=1000,umask=022,windows_names,x-systemd.automount"
+	}
+	return mnt, fmt.Sprintf("UUID=%s %s %s %s 0 2\n", uuid, mnt, ptype, opts)
 }
 
 func sanitize(s string) string {

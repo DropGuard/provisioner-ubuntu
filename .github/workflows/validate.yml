@@ -1,36 +1,50 @@
 name: Validate Ubuntu Provisioner
 on:
   push:
-    branches:
-      - main
+    branches: [main, master]
   pull_request:
-    branches:
-      - main
 
 jobs:
-  validate:
-    name: Lint & Validate
+  go:
+    name: Go build/vet/test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: go
+    env:
+      # Enables TestRepoConfigParity: asserts the repo's config/ directory
+      # matches the built-in Default() fallback (single source of truth).
+      REPO_ROOT: ${{ github.workspace }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      # Unit tests only. Full install + first-boot validation runs the VM
+      # harness (test-vm / verify-disk) on the maintainer's KVM machine —
+      # GitHub Actions runners have no /dev/kvm.
+      - name: Unit tests
+        run: go test ./...
+
+  shellcheck:
+    name: ShellCheck (deployed scripts)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Install tools
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq shellcheck yamllint
+      - name: Install shellcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
 
-      - name: ShellCheck — provision.sh
-        run: shellcheck -x scripts/provision.sh
-
-      - name: ShellCheck — prepare-usb.sh
-        run: shellcheck -x scripts/prepare-usb.sh
-
-      - name: YAML lint — autoinstall.yaml
-        run: yamllint -d '{extends: relaxed, rules: {line-length: disable, indentation: {spaces: 2}}}' autoinstall/autoinstall.yaml
-
-      # Catches the silent-failure class of bugs: a seed that builds fine but
-      # drops the installer into the interactive path (e.g. missing user-data,
-      # unexpanded placeholders). Runs the real copy-to-usb.py into a temp dir.
-      - name: Seed invariants — test-seed.sh
-        run: ./scripts/test-seed.sh
+      - name: ShellCheck
+        run: shellcheck -x scripts/setup-fcitx5-chinese.sh scripts/fav.sh scripts/test-env-loading.sh

@@ -1,5 +1,6 @@
 *.iso
 *.img
+__pycache__/
 
 # Secrets — never commit
 config/github_token.txt.txt

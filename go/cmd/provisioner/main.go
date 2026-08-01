@@ -22,7 +22,9 @@ func main() {
 		Short: "Ubuntu desktop provisioning tool (Go)",
 	}
 	root.AddCommand(configgenCmd())
+	root.AddCommand(buildPayloadCmd())
 	root.AddCommand(testvmCmd())
+	root.AddCommand(verifyDiskCmd())
 	root.AddCommand(testProvisionCmd())
 	root.AddCommand(usbCmd())
 	root.AddCommand(provisionCmd())
