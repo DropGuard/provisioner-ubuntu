@@ -26,6 +26,12 @@ func testvmCmd() *cobra.Command {
 				Timeout:    timeout,
 				Config:     autoinstall.Default(),
 				PayloadDir: payload,
+				ProgressFunc: func(p vmtest.ProgressReport) {
+					fmt.Printf("  progress: %.1f GiB written (vm %s)\n", p.WrittenGiB, p.Status)
+				},
+				OnStall: func(p vmtest.ProgressReport) {
+					fmt.Printf("  ⚠ SILENT HANG: target not written for a while (%.1f GiB, vm %s)\n", p.WrittenGiB, p.Status)
+				},
 			}
 			if repackOnly {
 				p, err := vmtest.PrepareTestISO(opts)

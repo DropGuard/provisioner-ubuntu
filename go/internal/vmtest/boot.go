@@ -21,6 +21,12 @@ type TestOptions struct {
 	Timeout    time.Duration // overall qemu timeout
 	Config     autoinstall.Config
 	PayloadDir string // copied into nocloud/ (provision, first-boot.service, config/, ...)
+
+	// ProgressFunc (if set) is called periodically during the install with the
+	// target write progress; OnStall fires when the disk stops being written
+	// for a while (silent hang) — both via QMP query-blockstats.
+	ProgressFunc func(ProgressReport)
+	OnStall      func(ProgressReport)
 }
 
 // TestResult reports what happened.
@@ -100,15 +106,33 @@ func RunTest(opts TestOptions) (*TestResult, error) {
 		return nil, err
 	}
 
-	timedOut, err := launchQEMU(qemuOptions{
+	qmpPath := filepath.Join(opts.WorkDir, "qmp.sock")
+	done, kill, err := launchQEMU(qemuOptions{
 		cdrom: repacked, target: opts.TargetDisk, serial: opts.DiskSerial,
-		console: consoleLog, timeout: opts.Timeout,
-		qmp: filepath.Join(opts.WorkDir, "qmp.sock"),
-		ga:  filepath.Join(opts.WorkDir, "ga.sock"),
+		console: consoleLog,
+		qmp:     qmpPath,
+		ga:      filepath.Join(opts.WorkDir, "ga.sock"),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("qemu: %w", err)
 	}
+
+	timedOut := false
+	if opts.ProgressFunc != nil || opts.OnStall != nil {
+		// Watch write progress via QMP and detect silent hangs in the background.
+		go func() {
+			WatchProgress(qmpPath, 15*time.Second, 3*time.Minute, opts.ProgressFunc, opts.OnStall)
+		}()
+	}
+	select {
+	case <-done:
+		// qemu exited on its own (install finished and rebooted).
+	case <-time.After(opts.Timeout):
+		kill()
+		<-done
+		timedOut = true
+	}
+
 	st, err := os.Stat(opts.TargetDisk)
 	if err != nil {
 		return nil, fmt.Errorf("stat target: %w", err)
@@ -146,11 +170,13 @@ type qemuOptions struct {
 	timeout                                time.Duration
 }
 
-func launchQEMU(o qemuOptions) (timedOut bool, err error) {
+// launchQEMU starts qemu and returns a channel delivering cmd.Wait()'s error
+// when the VM exits, plus a kill func for timeout handling.
+func launchQEMU(o qemuOptions) (waitCh <-chan error, kill func(), err error) {
 	ovmfCode := "/usr/share/OVMF/OVMF_CODE_4M.fd"
 	ovmfVars := o.target + ".vars"
 	if err := copyFile("/usr/share/OVMF/OVMF_VARS_4M.fd", ovmfVars); err != nil {
-		return false, err
+		return nil, nil, err
 	}
 	args := []string{
 		"-machine", "q35,accel=kvm", "-cpu", "host",
@@ -180,18 +206,11 @@ func launchQEMU(o qemuOptions) (timedOut bool, err error) {
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
-		return false, err
+		return nil, nil, err
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
-	select {
-	case err := <-done:
-		return false, err
-	case <-time.After(o.timeout):
-		cmd.Process.Kill()
-		<-done
-		return true, nil
-	}
+	return done, func() { cmd.Process.Kill() }, nil
 }
 
 // BootOptions for BootInstalled.
