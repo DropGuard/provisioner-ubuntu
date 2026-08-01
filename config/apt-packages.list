@@ -1,0 +1,35 @@
+# Apt packages — installed system-wide via apt.
+# Core packages (build-essential, curl, git, docker.io) are installed
+# by provision.sh. If any of these fails, the script aborts.
+# All other packages are best-effort: failures are logged but don't stop
+# the provisioner.
+
+# --- core (fail-fast) ---
+build-essential
+curl
+git
+docker.io
+
+# --- utilities ---
+ripgrep
+eza
+unzip
+zip
+protobuf-compiler
+jq
+htop
+ncdu
+bat
+fd-find
+
+# --- GNOME ---
+gnome-tweaks
+gnome-shell-extensions
+chrome-gnome-shell
+
+# --- media ---
+vlc
+qimgv
+flameshot
+enpass
+gh

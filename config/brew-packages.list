@@ -1,0 +1,6 @@
+# Homebrew packages — user-space, installed under /home/linuxbrew.
+# Installed best-effort (failures are logged, don't abort).
+
+yazi
+tokei
+gh

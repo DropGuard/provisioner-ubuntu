@@ -1,0 +1,36 @@
+name: Validate Ubuntu Provisioner
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  validate:
+    name: Lint & Validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq shellcheck yamllint
+
+      - name: ShellCheck — provision.sh
+        run: shellcheck -x scripts/provision.sh
+
+      - name: ShellCheck — prepare-usb.sh
+        run: shellcheck -x scripts/prepare-usb.sh
+
+      - name: YAML lint — autoinstall.yaml
+        run: yamllint -d '{extends: relaxed, rules: {line-length: disable, indentation: {spaces: 2}}}' autoinstall/autoinstall.yaml
+
+      # Catches the silent-failure class of bugs: a seed that builds fine but
+      # drops the installer into the interactive path (e.g. missing user-data,
+      # unexpanded placeholders). Runs the real copy-to-usb.py into a temp dir.
+      - name: Seed invariants — test-seed.sh
+        run: ./scripts/test-seed.sh

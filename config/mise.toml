@@ -1,0 +1,12 @@
+[tools]
+node = "lts"
+python = "latest"
+go = "latest"
+rust = "stable"
+java = "latest"
+bun = "latest"
+
+pnpm = "latest"
+maven = "latest"
+uv = "latest"
+ruff = "latest"

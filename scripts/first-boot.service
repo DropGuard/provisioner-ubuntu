@@ -1,0 +1,16 @@
+[Unit]
+Description=First-boot provisioning
+After=network-online.target gdm.service
+Wants=network-online.target
+Before=systemd-user-sessions.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/provision
+StandardOutput=journal+console
+StandardError=journal+console
+TimeoutStartSec=3600
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

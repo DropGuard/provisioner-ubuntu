@@ -1,0 +1,5 @@
+*.iso
+*.img
+
+# Secrets — never commit
+config/github_token.txt.txt
