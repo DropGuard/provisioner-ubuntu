@@ -23,6 +23,9 @@ type aptConf struct {
 	Proxy    string      `yaml:"proxy,omitempty"`
 	Primary  []aptMirror `yaml:"primary"`
 	Security []aptMirror `yaml:"security,omitempty"`
+	// GeoIP + Conf are autoinstall.apt (target) fields, not cloud-init's.
+	GeoIP *bool  `yaml:"geoip,omitempty"` // false = don't let the installer pick a geo mirror
+	Conf  *string `yaml:"conf,omitempty"`  // apt.conf content (e.g. Acquire proxy)
 }
 
 type aptMirror struct {
@@ -43,6 +46,7 @@ type autoinstall struct {
 	EarlyCmds []string `yaml:"early-commands,omitempty"`
 	LateCmds  []string `yaml:"late-commands"`
 	Shutdown  string   `yaml:"shutdown"`
+	Apt       *aptConf `yaml:"apt,omitempty"` // nested so the installer configures the target mirror
 }
 
 type identity struct {
@@ -111,6 +115,7 @@ func RenderUserData(c Config) (string, error) {
 			EarlyCmds: c.EarlyCommand,
 			LateCmds:  c.LateCommand,
 			Shutdown:  shutdownAction(c.Reboot),
+			Apt:       targetAptConf(c.AptMirror, c.AptProxy),
 		},
 	}
 	b, err := yaml.Marshal(&d)
@@ -120,8 +125,8 @@ func RenderUserData(c Config) (string, error) {
 	return "#cloud-config\n" + string(b), nil
 }
 
-// aptConfFor builds the cloud-init apt config (mirror + optional proxy), or
-// nil if no mirror is set.
+// aptConfFor builds the cloud-init apt config (live-session mirror + proxy),
+// or nil if no mirror is set.
 func aptConfFor(mirror, proxy string) *aptConf {
 	if mirror == "" {
 		return nil
@@ -131,6 +136,28 @@ func aptConfFor(mirror, proxy string) *aptConf {
 		Primary:  []aptMirror{{Arches: []string{"default"}, URI: "http://" + mirror + "/ubuntu/"}},
 		Security: []aptMirror{{Arches: []string{"default"}, URI: "http://" + mirror + "/ubuntu-security/"}},
 	}
+}
+
+// targetAptConf builds the autoinstall.apt config for the INSTALLED system: the
+// same mirror, but nested under autoinstall (where the 26.04 installer reads it
+// from — a top-level `apt:` only configures the live session) with geoip
+// disabled so the installer can't fall back to a geo-picked mirror. The apt
+// proxy goes into `conf:` (subiquity's form), not cloud-init's `proxy:`.
+func targetAptConf(mirror, proxy string) *aptConf {
+	if mirror == "" {
+		return nil
+	}
+	c := &aptConf{
+		Primary:  []aptMirror{{Arches: []string{"default"}, URI: "http://" + mirror + "/ubuntu/"}},
+		Security: []aptMirror{{Arches: []string{"default"}, URI: "http://" + mirror + "/ubuntu-security/"}},
+	}
+	geoip := false
+	c.GeoIP = &geoip
+	if proxy != "" {
+		conf := fmt.Sprintf("Acquire::http::Proxy %q;\nAcquire::https::Proxy %q;\n", proxy, proxy)
+		c.Conf = &conf
+	}
+	return c
 }
 
 func makeSnaps(snaps []Snap) []snap {

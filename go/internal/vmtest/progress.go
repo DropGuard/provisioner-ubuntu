@@ -1,55 +1,68 @@
 package vmtest
 
 import (
-	"fmt"
+	"os"
+	"syscall"
 	"time"
 )
 
 // ProgressReport is a snapshot of the install's write progress.
 type ProgressReport struct {
 	WrittenGiB float64
-	Status     string // qemu runstate, e.g. "running"
+	Status     string // "running" or "exited"
 }
 
-// WatchProgress monitors a running install via QMP query-blockstats. It calls
-// tick every interval with current progress, and if the target disk stops being
-// written for stallThreshold while the VM is running (a silent hang — the disk
-// wrote ~14 GiB then stopped, VM still "running"), it calls stall and returns.
-// Returns when qemu exits (QMP socket closes) or a stall is detected.
-func WatchProgress(qmpPath string, interval, stallThreshold time.Duration,
-	tick func(ProgressReport), stall func(ProgressReport)) error {
-
-	q, err := ConnectQMP(qmpPath)
-	if err != nil {
-		return fmt.Errorf("connect qmp: %w", err)
-	}
-	defer q.Close()
+// WatchProgress monitors the target qcow2's on-disk size via os.Stat — no
+// external binary, no lock contention. It calls tick every interval with the
+// current file size, and if the disk stops growing for stallThreshold while
+// the qemu process is still alive, it calls stall. Returns when qemu exits.
+func WatchProgress(qcow2Path string, qemuPID int, interval, stallThreshold time.Duration,
+	tick func(ProgressReport), stall func(ProgressReport)) {
 
 	var last int64
 	quiet := time.Duration(0)
 	for {
-		status, _ := q.Status()
-		w, err := q.TargetBytesWritten("target")
-		if err != nil {
-			// QMP socket closed => qemu exited. Not an error to the caller.
-			return nil
+		alive := processAlive(qemuPID)
+
+		var actual int64
+		if st, err := os.Stat(qcow2Path); err == nil {
+			actual = st.Size()
 		}
-		p := ProgressReport{WrittenGiB: float64(w) / (1 << 30), Status: status}
+
+		status := "running"
+		if !alive {
+			status = "exited"
+		}
+		p := ProgressReport{WrittenGiB: float64(actual) / (1 << 30), Status: status}
 		if tick != nil {
 			tick(p)
 		}
-		if w != last {
-			last = w
+
+		if !alive {
+			return
+		}
+
+		if actual != last {
+			last = actual
 			quiet = 0
-		} else if status == "running" {
+		} else {
 			quiet += interval
 			if quiet >= stallThreshold {
 				if stall != nil {
 					stall(p)
 				}
-				return nil
+				quiet = 0
 			}
 		}
 		time.Sleep(interval)
 	}
+}
+
+// processAlive returns true if the process with the given PID exists.
+func processAlive(pid int) bool {
+	p, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	return p.Signal(syscall.Signal(0)) == nil
 }

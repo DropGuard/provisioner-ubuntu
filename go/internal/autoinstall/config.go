@@ -89,13 +89,12 @@ func Default() Config {
 			// provisioner binary; first-boot.service runs it as /usr/local/bin/provision.
 			fmt.Sprintf("mkdir -p %s %s", "/target"+paths.ConfigDir, "/target"+paths.DotfilesDir),
 			fmt.Sprintf("cp /cdrom/nocloud/provision %s", "/target"+paths.ProvisionBin),
-			fmt.Sprintf("cp /cdrom/nocloud/test-env-loading.sh %s", "/target"+paths.TestEnvLoadingBin),
 			fmt.Sprintf("cp /cdrom/nocloud/fav.sh %s 2>/dev/null || true", "/target"+paths.FavBin),
 			fmt.Sprintf("cp /cdrom/nocloud/setup-fcitx5-chinese.sh %s", "/target"+paths.Fcitx5Script),
 			fmt.Sprintf("cp -a /cdrom/nocloud/config/. %s/ 2>/dev/null || true", "/target"+paths.ConfigDir),
 			fmt.Sprintf("cp -a /cdrom/nocloud/dotfiles/. %s/ 2>/dev/null || true", "/target"+paths.DotfilesDir),
-			fmt.Sprintf("chmod +x %s %s %s %s 2>/dev/null || true",
-				"/target"+paths.ProvisionBin, "/target"+paths.TestEnvLoadingBin,
+			fmt.Sprintf("chmod +x %s %s %s 2>/dev/null || true",
+				"/target"+paths.ProvisionBin,
 				"/target"+paths.FavBin, "/target"+paths.Fcitx5Script),
 			// First-boot provisioning service.
 			fmt.Sprintf("cp /cdrom/nocloud/first-boot.service %s", "/target"+paths.FirstBootUnit),
@@ -103,3 +102,35 @@ func Default() Config {
 		},
 	}
 }
+// GoldenVersion is bumped manually whenever Golden()'s base config changes
+// (packages, user, mirror, ...). The golden image cache key includes it, so
+// bumping forces a clean rebuild instead of silently reusing a stale image.
+const GoldenVersion = "v1"
+
+// Golden returns the minimal config for building the cached golden image
+// (Phase A of the e2e pipeline). The image is the smallest thing Phase B
+// needs: a user to SSH into, openssh-server for the SSH channel, and
+// qemu-guest-agent for future QEMU-level control. No snaps, no provision
+// payload, no locale/timezone late-commands — the installer's default base is
+// fine for a test image. The install finishes in ~10 minutes instead of 40.
+// Phase B provisions on overlays of this image via SSH.
+func Golden() Config {
+	return Config{
+		Identity: Identity{
+			Hostname: "ubuntu",
+			Username: "dailyuser",
+		},
+		Locale:     "en_US.UTF-8",
+		Timezone:   "Asia/Shanghai",
+		Keyboard:   "us",
+		DiskSerial: "50026B727200FDDC",
+		Packages: []string{
+			"openssh-server", // SSH channel for Phase B assertions
+			"qemu-guest-agent",
+		},
+		AptMirror:  "mirrors.ustc.edu.cn",
+		SSHAllowPW: true,
+		Reboot:     false, // poweroff = clean VM exit signal
+	}
+}
+

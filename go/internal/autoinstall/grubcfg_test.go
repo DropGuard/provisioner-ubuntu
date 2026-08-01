@@ -27,6 +27,25 @@ func TestGrubCfgSemicolonEscaping(t *testing.T) {
 	}
 }
 
+// TestGrubCfgAutoDetectSeed checks the VM form (empty seedPath): ds=nocloud with
+// no s= clause and no ';' at all, so the grub ';' truncation bug cannot apply.
+func TestGrubCfgAutoDetectSeed(t *testing.T) {
+	out := RenderGrubCfg("", true)
+
+	if !strings.Contains(out, "autoinstall ds=nocloud ---") {
+		t.Errorf("empty seedPath must emit `autoinstall ds=nocloud` (auto-detect), got:\n%s", out)
+	}
+	// No source clause at all: no ';' anywhere (so the truncation bug cannot
+	// apply), no /cdrom/nocloud reference. (A bare "s=" check would false-hit on
+	// "ds=nocloud", so assert on the delimiter and the path instead.)
+	if strings.Contains(out, ";") {
+		t.Errorf("empty seedPath must not emit any ';' (no source clause), got:\n%s", out)
+	}
+	if strings.Contains(out, "cdrom/nocloud") {
+		t.Errorf("empty seedPath must not reference /cdrom/nocloud:\n%s", out)
+	}
+}
+
 // TestGrubCfgAutoinstallAndConsole checks the entry actually carries the
 // autoinstall trigger and (when requested) the serial console.
 func TestGrubCfgAutoinstallAndConsole(t *testing.T) {

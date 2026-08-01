@@ -26,6 +26,7 @@ func main() {
 	root.AddCommand(testvmCmd())
 	root.AddCommand(verifyDiskCmd())
 	root.AddCommand(testProvisionCmd())
+	root.AddCommand(testE2ECmd())
 	root.AddCommand(usbCmd())
 	root.AddCommand(provisionCmd())
 	root.AddCommand(provisionUserCmd())

@@ -2,6 +2,8 @@ package vmtest
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -95,25 +97,37 @@ func stripIntervalQuotes(s string) string {
 	return strings.ReplaceAll(s, "'", "")
 }
 
-// SeedConfig is the nocloud seed planted on the repacked ISO.
-type SeedConfig struct {
-	UserData string            // rendered user-data (autoinstall.RenderUserData output)
-	MetaData string            // the (possibly empty) meta-data file
-	Payload  map[string][]byte // extra files copied under nocloud/, e.g. "provision.sh"
-}
-
 // RepackISO builds a bootable autoinstall ISO from the original Ubuntu desktop
-// ISO: it extracts the tree, writes grub.cfg + the nocloud seed, and repacks
-// with xorriso using the original's boot parameters.
-//
-// The extraction uses mount + rsync (needs root, matching the old test-vm.sh);
-// the xorriso repack and everything after is root-free.
-func RepackISO(srcISO, tree, outISO string, seed SeedConfig) error {
+// ISO. The repacked ISO carries ONLY the fixed grub.cfg (ds=nocloud
+// auto-detect — the seed lives on a separate cidata disk, see WriteSeedISO) and
+// the payload tree that the late-commands copy into the target. When payload is
+// empty (golden mode) the output ISO is constant per ISO hash and cached, so
+// editing user-data never re-extracts or re-runs xorriso; a payload-carrying
+// repack extracts the ISO fresh into the scratch tree each time (the rare,
+// legacy path).
+func RepackISO(srcISO, tree, outISO string, payload map[string][]byte) error {
+	hash, err := FileSha256(srcISO)
+	if err != nil {
+		return fmt.Errorf("hash ISO: %w", err)
+	}
+	// A payload-free repack depends only on the ISO itself: reuse the cached
+	// output instead of extracting + repacking.
+	if len(payload) == 0 {
+		hit, err := outISOCached(hash, outISO)
+		if err != nil {
+			return fmt.Errorf("repack cache: %w", err)
+		}
+		if hit {
+			return nil
+		}
+	}
+
+	os.RemoveAll(tree)
 	if err := extractISO(srcISO, tree); err != nil {
 		return fmt.Errorf("extract ISO: %w", err)
 	}
-	if err := writeSeed(tree, seed); err != nil {
-		return fmt.Errorf("write seed: %w", err)
+	if err := writeISOTree(tree, payload); err != nil {
+		return fmt.Errorf("write tree: %w", err)
 	}
 	p, err := deriveXorrisoParams(srcISO)
 	if err != nil {
@@ -122,8 +136,81 @@ func RepackISO(srcISO, tree, outISO string, seed SeedConfig) error {
 	if err := repackWithXorriso(p, tree, outISO); err != nil {
 		return fmt.Errorf("repack: %w", err)
 	}
+	if len(payload) == 0 {
+		if err := cacheOutISO(hash, outISO); err != nil {
+			return fmt.Errorf("cache repacked ISO: %w", err)
+		}
+	}
 	return nil
 }
+
+// sentinel is written into the repacked-ISO cache directory after a successful
+// repack so a partial run (crash, disk full) is detected and retried.
+const sentinel = ".cache-ok"
+
+// FileSha256 returns the hex-encoded SHA-256 hash of the file at path.
+func FileSha256(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// ── Repacked-ISO output cache ───────────────────────────────────────────
+
+// outISOCacheDir returns the cache dir for the payload-free repack of an ISO
+// hash. The output depends only on the ISO (grub.cfg is fixed), so config edits
+// never invalidate it — one entry per ISO version.
+func outISOCacheDir(hash string) string {
+	dir, _ := os.UserCacheDir()
+	return filepath.Join(dir, "vmtest-iso-out", hash)
+}
+
+const outISOName = "autoinstall.iso"
+
+// outISOCached restores the cached payload-free repack to outISO. Returns false
+// (no error) if the cache is absent/incomplete.
+func outISOCached(hash, outISO string) (bool, error) {
+	cacheDir := outISOCacheDir(hash)
+	iso := filepath.Join(cacheDir, outISOName)
+	if _, err := os.Stat(filepath.Join(cacheDir, sentinel)); err != nil {
+		return false, nil
+	}
+	if _, err := os.Stat(iso); err != nil {
+		return false, nil // sentinel but ISO missing — treat as a miss, rebuild
+	}
+	return true, linkOrCopy(iso, outISO)
+}
+
+// cacheOutISO stores a freshly repacked payload-free ISO keyed by ISO hash.
+func cacheOutISO(hash, outISO string) error {
+	cacheDir := outISOCacheDir(hash)
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		return err
+	}
+	if err := linkOrCopy(outISO, filepath.Join(cacheDir, outISOName)); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(cacheDir, sentinel), nil, 0o644)
+}
+
+// linkOrCopy hard-links src to dst (instant CoW on the same filesystem),
+// falling back to a copy when the paths straddle filesystems.
+func linkOrCopy(src, dst string) error {
+	os.Remove(dst)
+	if err := os.Link(src, dst); err == nil {
+		return nil
+	}
+	return copyFile(src, dst)
+}
+
+// ── ISO extraction (pure Go, no root) ───────────────────────────────────
 
 // extractISO copies the ISO's ISO9660 tree to tree using go-diskfs in pure Go —
 // no mount, no root. Large files (the squashfs) are streamed via Open+io.Copy.
@@ -179,35 +266,83 @@ func copyFileFromFS(fsys filesystem.FileSystem, src, dst string) error {
 	return err
 }
 
-// writeSeed writes grub.cfg and the nocloud seed into the extracted tree.
-func writeSeed(tree string, seed SeedConfig) error {
-	grub := autoinstall.RenderGrubCfg("/cdrom/nocloud/", true)
+// ── Seed writing ────────────────────────────────────────────────────────
+
+// writeISOTree writes the fixed grub.cfg and the payload tree into the
+// extracted ISO tree. user-data/meta-data are deliberately NOT here — they live
+// on a separate cidata disk (WriteSeedISO) so the ISO never changes with config.
+func writeISOTree(tree string, payload map[string][]byte) error {
+	// ds=nocloud auto-detect: cloud-init finds the cidata-labeled seed disk.
+	grub := autoinstall.RenderGrubCfg("", true)
 	if err := os.WriteFile(tree+"/boot/grub/grub.cfg", []byte(grub), 0o644); err != nil {
 		return err
 	}
 	seedDir := tree + "/nocloud"
-	if err := os.MkdirAll(seedDir+"/config", 0o755); err != nil {
-		return err
-	}
-	os.MkdirAll(seedDir+"/dotfiles", 0o755)
-	if err := os.WriteFile(seedDir+"/user-data", []byte(seed.UserData), 0o644); err != nil {
-		return err
-	}
-	if err := os.WriteFile(seedDir+"/autoinstall.yaml", []byte(seed.UserData), 0o644); err != nil {
-		return err
-	}
-	if err := os.WriteFile(seedDir+"/meta-data", []byte(seed.MetaData), 0o644); err != nil {
-		return err
-	}
-	for name, data := range seed.Payload {
-		if err := os.WriteFile(seedDir+"/"+name, data, 0o755); err != nil {
+	if len(payload) == 0 {
+		os.RemoveAll(seedDir) // nothing to carry (golden mode) — drop the dir
+	} else {
+		if err := os.MkdirAll(seedDir, 0o755); err != nil {
 			return err
+		}
+		for name, data := range payload {
+			dst := filepath.Join(seedDir, name)
+			if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+				return fmt.Errorf("mkdir %s: %w", filepath.Dir(dst), err)
+			}
+			if err := os.WriteFile(dst, data, 0o755); err != nil {
+				return fmt.Errorf("write %s: %w", dst, err)
+			}
 		}
 	}
 	// Drop a stale boot catalog — xorriso regenerates it via -c.
 	os.Remove(tree + "/boot.catalog")
 	return nil
 }
+
+// WriteSeedISO builds the tiny NoCloud config-drive (seed.iso): an ISO9660
+// image labeled `cidata` carrying only user-data + meta-data. cloud-init in the
+// live installer auto-detects it (ds=nocloud) and hands the autoinstall config
+// to subiquity. A few KB, regenerated in ~0s — config edits never touch the
+// bootable ISO. No -b flag: the seed has no boot record and can never be booted.
+func WriteSeedISO(outPath, userData, metaData string) error {
+	dir, err := os.MkdirTemp("", "seed-*")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(dir)
+	if err := os.WriteFile(filepath.Join(dir, "user-data"), []byte(userData), 0o644); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(dir, "meta-data"), []byte(metaData), 0o644); err != nil {
+		return err
+	}
+	return writeISODir(outPath, "cidata", dir)
+}
+
+// WritePayloadISO builds a plain ISO carrying a payload directory's files at
+// the root. Phase C uses it to deliver the provision payload into the booted
+// guest: labeled non-cidata so cloud-init ignores it, and the placement script
+// mounts it by label. (The autoinstall seed.iso stays tiny; this one is ~12MB
+// because it carries the provisioner binary.)
+func WritePayloadISO(outPath, label, payloadDir string) error {
+	return writeISODir(outPath, label, payloadDir)
+}
+
+// writeISODir runs xorriso to build a non-bootable ISO from a directory's
+// contents with the given volume label.
+func writeISODir(outPath, label, dir string) error {
+	var stderr bytes.Buffer
+	cmd := exec.Command("xorriso", "-as", "mkisofs", "-r",
+		"-volid", label,
+		"-o", outPath, dir)
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("xorriso %s: %w\n%s", label, err, stderr.String())
+	}
+	return nil
+}
+
+// ── xorriso repack ──────────────────────────────────────────────────────
 
 // xorrisoArgs builds the xorriso argument slice for the repack. The interval
 // args are passed verbatim (single-quoted path, as xorriso wants).
