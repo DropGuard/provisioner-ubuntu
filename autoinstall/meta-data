@@ -1,3 +1,0 @@
-# cloud-init meta-data — intentionally empty.
-# cloud-init requires this file to exist; its presence (together with
-# autoinstall.yaml) signals the autoinstall flow.
