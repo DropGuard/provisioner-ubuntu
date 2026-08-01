@@ -194,6 +194,75 @@ func launchQEMU(o qemuOptions) (timedOut bool, err error) {
 	}
 }
 
+// BootOptions for BootInstalled.
+type BootOptions struct {
+	Disk      string // the installed qcow2 (or an overlay) to boot
+	WorkDir   string
+	Serial    string
+	Timeout   time.Duration
+}
+
+// BootInstalled boots an existing installed system (the autoinstall output, or
+// a qcow2 external-snapshot overlay of it) and waits for qemu to exit (the
+// install's `shutdown: reboot` is not present here, so the run ends on timeout
+// or when the first-boot provisioning service finishes). QMP + guest-agent
+// sockets are exposed under WorkDir for live observation and guest-exec.
+func BootInstalled(o BootOptions) (timedOut bool, err error) {
+	if o.Disk == "" {
+		return false, fmt.Errorf("Disk required")
+	}
+	if o.WorkDir == "" {
+		o.WorkDir = "/tmp/vmtest-boot"
+	}
+	if o.Serial == "" {
+		o.Serial = defaultDiskSerial
+	}
+	if o.Timeout == 0 {
+		o.Timeout = 30 * time.Minute
+	}
+	ovmfCode := "/usr/share/OVMF/OVMF_CODE_4M.fd"
+	ovmfVars := filepath.Join(o.WorkDir, "boot.vars")
+	os.Remove(ovmfVars)
+	if err := copyFile("/usr/share/OVMF/OVMF_VARS_4M.fd", ovmfVars); err != nil {
+		return false, err
+	}
+	console := filepath.Join(o.WorkDir, "boot-console.log")
+	os.Remove(console)
+	args := []string{
+		"-machine", "q35,accel=kvm", "-cpu", "host",
+		"-m", "4096", "-smp", "2",
+		"-drive", "if=pflash,format=raw,readonly=on,file=" + ovmfCode,
+		"-drive", "if=pflash,format=raw,file=" + ovmfVars,
+		"-drive", "file=" + o.Disk + ",format=qcow2,if=none,id=target",
+		"-device", "virtio-blk-pci,drive=target,serial=" + o.Serial,
+		"-netdev", "user,id=net0,hostfwd=tcp::2222-:22",
+		"-device", "virtio-net-pci,netdev=net0",
+		"-nographic", "-serial", "file:" + console, "-monitor", "none", "-no-reboot",
+	}
+	args = append(args,
+		"-qmp", "unix:"+filepath.Join(o.WorkDir, "qmp.sock")+",server=on,wait=off",
+		"-chardev", "socket,path="+filepath.Join(o.WorkDir, "ga.sock")+",server=on,wait=off,id=ga0",
+		"-device", "virtio-serial-pci",
+		"-device", "virtserialport,chardev=ga0,name=org.qemu.guest_agent.0")
+
+	cmd := exec.Command("qemu-system-x86_64", args...)
+	cmd.Stdout = os.Stderr
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		return false, err
+	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	select {
+	case err := <-done:
+		return false, err
+	case <-time.After(o.Timeout):
+		cmd.Process.Kill()
+		<-done
+		return true, nil
+	}
+}
+
 func qemuImgCreate(path, size string) error {
 	return exec.Command("qemu-img", "create", "-f", "qcow2", path, size).Run()
 }

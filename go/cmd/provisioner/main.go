@@ -23,6 +23,7 @@ func main() {
 	}
 	root.AddCommand(configgenCmd())
 	root.AddCommand(testvmCmd())
+	root.AddCommand(testProvisionCmd())
 	root.AddCommand(usbCmd())
 	root.AddCommand(provisionCmd())
 	root.AddCommand(provisionUserCmd())
