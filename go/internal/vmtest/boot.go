@@ -103,6 +103,7 @@ func RunTest(opts TestOptions) (*TestResult, error) {
 	timedOut, err := launchQEMU(qemuOptions{
 		cdrom: repacked, target: opts.TargetDisk, serial: opts.DiskSerial,
 		console: consoleLog, timeout: opts.Timeout,
+		qmp: filepath.Join(opts.WorkDir, "qmp.sock"),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("qemu: %w", err)
@@ -140,8 +141,8 @@ func seedPayloadFromDir(dir string) (map[string][]byte, error) {
 }
 
 type qemuOptions struct {
-	cdrom, target, serial, console string
-	timeout                        time.Duration
+	cdrom, target, serial, console, qmp string
+	timeout                             time.Duration
 }
 
 func launchQEMU(o qemuOptions) (timedOut bool, err error) {
@@ -162,6 +163,9 @@ func launchQEMU(o qemuOptions) (timedOut bool, err error) {
 		"-netdev", "user,id=net0,hostfwd=tcp::2222-:22",
 		"-device", "virtio-net-pci,netdev=net0",
 		"-nographic", "-serial", "file:" + o.console, "-monitor", "none", "-no-reboot",
+	}
+	if o.qmp != "" {
+		args = append(args, "-qmp", "unix:"+o.qmp+",server=on,wait=off")
 	}
 	cmd := exec.Command("qemu-system-x86_64", args...)
 	cmd.Stdout = os.Stderr
