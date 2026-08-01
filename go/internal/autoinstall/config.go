@@ -34,6 +34,7 @@ type Config struct {
 	Snaps       []Snap
 	SSHAllowPW  bool
 	AptMirror   string   // primary apt mirror for the install (cloud-init apt: module)
+	AptProxy    string   // apt proxy (e.g. host apt-cacher-ng at 10.0.2.2:3142); empty = none
 	EarlyCommand []string // run in the live session BEFORE the install starts
 	LateCommand []string  // run chrooted to /target during the install
 	Reboot      bool      // shutdown action after install

@@ -20,6 +20,7 @@ type doc struct {
 }
 
 type aptConf struct {
+	Proxy    string      `yaml:"proxy,omitempty"`
 	Primary  []aptMirror `yaml:"primary"`
 	Security []aptMirror `yaml:"security,omitempty"`
 }
@@ -92,7 +93,7 @@ type sshConf struct {
 // does not recognize "# cloud-config" and would silently drop the config.
 func RenderUserData(c Config) (string, error) {
 	d := doc{
-		Apt: aptConfFor(c.AptMirror),
+		Apt: aptConfFor(c.AptMirror, c.AptProxy),
 		Autoinstall: autoinstall{
 		Version:  1,
 		Identity: identity{Hostname: c.Identity.Hostname, Username: c.Identity.Username, PasswordHash: c.Identity.PasswordHash},
@@ -119,12 +120,14 @@ func RenderUserData(c Config) (string, error) {
 	return "#cloud-config\n" + string(b), nil
 }
 
-// aptConfFor builds the cloud-init apt mirror config, or nil if no mirror set.
-func aptConfFor(mirror string) *aptConf {
+// aptConfFor builds the cloud-init apt config (mirror + optional proxy), or
+// nil if no mirror is set.
+func aptConfFor(mirror, proxy string) *aptConf {
 	if mirror == "" {
 		return nil
 	}
 	return &aptConf{
+		Proxy:    proxy,
 		Primary:  []aptMirror{{Arches: []string{"default"}, URI: "http://" + mirror + "/ubuntu/"}},
 		Security: []aptMirror{{Arches: []string{"default"}, URI: "http://" + mirror + "/ubuntu-security/"}},
 	}
