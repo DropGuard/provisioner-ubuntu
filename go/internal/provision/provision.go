@@ -15,6 +15,13 @@ import (
 	"provisioner-ubuntu/internal/config"
 )
 
+// Phase name constants for the phases users actually re-run with --phase.
+const (
+	PhaseDotfiles = "dotfiles"
+	PhaseFlatpaks = "flatpaks"
+	PhaseSnaps    = "snaps"
+)
+
 // Phase is one provisioning step.
 type Phase struct {
 	Name string // short name, used for the provision-user subcommand
@@ -30,6 +37,7 @@ type Phase struct {
 type Provisioner struct {
 	Cfg    config.Provision
 	Runner Runner
+	Phase  string // if set, RunAll only runs this phase
 
 	// cleanup is registered by phases that start a transient resource (e.g. the
 	// install-time proxy core) so it is torn down when RunAll returns — on any
@@ -43,8 +51,8 @@ func (p *Provisioner) Phases() []Phase {
 		{Name: "apt-mirror", Run: p.phaseAptMirror},
 		{Name: "apt-update", Run: p.phaseAptUpdate},
 		{Name: "core-packages", FailFast: true, Run: p.phaseCorePackages},
-		{Name: "snaps", Run: p.phaseSnaps},
-		{Name: "flatpaks", Run: p.phaseFlatpaks},
+		{Name: PhaseSnaps, Run: p.phaseSnaps},
+		{Name: PhaseFlatpaks, Run: p.phaseFlatpaks},
 		// enpass-repo after core-packages so curl is available (it isn't on the
 		// minimal golden image before then).
 		{Name: "enpass-repo", Run: p.phaseEnpassRepo},
@@ -67,15 +75,16 @@ func (p *Provisioner) Phases() []Phase {
 		{Name: "shell-env", Run: p.phaseShellEnv},
 		{Name: "default-apps", Run: p.phaseDefaultApps},
 		{Name: "git-config", User: true, Run: p.phaseGitConfig},
-		{Name: "dotfiles", User: true, Run: p.phaseDotfiles},
+		{Name: PhaseDotfiles, User: true, Run: p.phaseDotfiles},
 		{Name: "mount-data-disks", Run: p.phaseMountDataDisks},
 		{Name: "disable-service", Run: p.phaseDisableService},
 	}
 }
 
-// RunAll runs every phase. selfPath is the binary to re-exec for user phases.
-// A FailFast phase error aborts the run immediately and is returned, so the
-// caller exits non-zero and systemd marks the oneshot failed (retryable).
+// RunAll runs every phase (or a single phase when Phase is set). selfPath is the
+// binary to re-exec for user phases. A FailFast phase error aborts the run
+// immediately and is returned, so the caller exits non-zero and systemd marks the
+// oneshot failed (retryable).
 func (p *Provisioner) RunAll(selfPath string) error {
 	// Tear down any transient resources (install-time proxy core) no matter how
 	// the run ends — a FailFast abort included.
@@ -84,7 +93,12 @@ func (p *Provisioner) RunAll(selfPath string) error {
 			p.cleanup()
 		}
 	}()
+	matched := false
 	for _, ph := range p.Phases() {
+		if p.Phase != "" && ph.Name != p.Phase {
+			continue
+		}
+		matched = true
 		p.logPhase(ph.Name)
 		var err error
 		if ph.User {
@@ -98,6 +112,9 @@ func (p *Provisioner) RunAll(selfPath string) error {
 			}
 			log.Printf("  [WARN] phase %s: %v", ph.Name, err)
 		}
+	}
+	if p.Phase != "" && !matched {
+		return fmt.Errorf("unknown phase %q", p.Phase)
 	}
 	return nil
 }

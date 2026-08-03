@@ -316,3 +316,236 @@ func TestPhaseMiseShims(t *testing.T) {
 		}
 	}
 }
+
+// ── Dotfiles tests ────────────────────────────────────────────────────────
+
+// TestPhaseDotfilesNewFileInExistingDir verifies that a new file under an
+// already-existing directory (e.g. ~/.config) is deployed, fixing the old
+// top-level "dir exists → skip everything" bug.
+func TestPhaseDotfilesNewFileInExistingDir(t *testing.T) {
+	src := t.TempDir()
+	home := t.TempDir()
+
+	// Source: .config/kitty/kitty.conf
+	srcConf := filepath.Join(src, ".config", "kitty")
+	if err := os.MkdirAll(srcConf, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcConf, "kitty.conf"), []byte("font_size 18"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Dest: ~/.config already exists (with some other app's file)
+	dstExisting := filepath.Join(home, ".config", "other-app")
+	if err := os.MkdirAll(dstExisting, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("PROVISIONER_DOTFILES", src)
+	p := &Provisioner{Cfg: config.Provision{Home: home, User: "dailyuser"}, Runner: &fakeRunner{}}
+	if err := p.phaseDotfiles(p); err != nil {
+		t.Fatalf("phaseDotfiles: %v", err)
+	}
+
+	// New file must exist with correct content.
+	got, err := os.ReadFile(filepath.Join(home, ".config", "kitty", "kitty.conf"))
+	if err != nil {
+		t.Fatalf("kitty.conf was not deployed: %v", err)
+	}
+	if string(got) != "font_size 18" {
+		t.Errorf("content = %q, want %q", string(got), "font_size 18")
+	}
+}
+
+// TestPhaseDotfilesExistingFilePreserved verifies that files already present at
+// the destination are NOT overwritten — protecting user local edits.
+func TestPhaseDotfilesExistingFilePreserved(t *testing.T) {
+	src := t.TempDir()
+	home := t.TempDir()
+
+	// Source: .bashrc with provisioner content.
+	if err := os.WriteFile(filepath.Join(src, ".bashrc"), []byte("source-provisioned"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Dest: .bashrc already exists with user's local edits.
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".bashrc"), []byte("local-edits"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("PROVISIONER_DOTFILES", src)
+	p := &Provisioner{Cfg: config.Provision{Home: home, User: "dailyuser"}, Runner: &fakeRunner{}}
+	if err := p.phaseDotfiles(p); err != nil {
+		t.Fatalf("phaseDotfiles: %v", err)
+	}
+
+	got, _ := os.ReadFile(filepath.Join(home, ".bashrc"))
+	if string(got) != "local-edits" {
+		t.Errorf("existing file was overwritten: got %q, want %q", string(got), "local-edits")
+	}
+}
+
+// TestPhaseDotfilesMixedDeploy verifies that when a directory has both new and
+// existing files, only the new ones are deployed.
+func TestPhaseDotfilesMixedDeploy(t *testing.T) {
+	src := t.TempDir()
+	home := t.TempDir()
+
+	// Source: .config/app/{a.conf, b.conf}
+	srcApp := filepath.Join(src, ".config", "app")
+	if err := os.MkdirAll(srcApp, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(srcApp, "a.conf"), []byte("new-a"), 0o644)
+	os.WriteFile(filepath.Join(srcApp, "b.conf"), []byte("new-b"), 0o644)
+
+	// Dest: ~/.config/app/ already exists with a.conf (old), but not b.conf.
+	dstApp := filepath.Join(home, ".config", "app")
+	if err := os.MkdirAll(dstApp, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(dstApp, "a.conf"), []byte("local-a"), 0o644)
+
+	t.Setenv("PROVISIONER_DOTFILES", src)
+	p := &Provisioner{Cfg: config.Provision{Home: home, User: "dailyuser"}, Runner: &fakeRunner{}}
+	if err := p.phaseDotfiles(p); err != nil {
+		t.Fatalf("phaseDotfiles: %v", err)
+	}
+
+	// a.conf preserved.
+	a, _ := os.ReadFile(filepath.Join(dstApp, "a.conf"))
+	if string(a) != "local-a" {
+		t.Errorf("a.conf overwritten: %q", string(a))
+	}
+	// b.conf deployed.
+	b, err := os.ReadFile(filepath.Join(dstApp, "b.conf"))
+	if err != nil {
+		t.Fatalf("b.conf not deployed: %v", err)
+	}
+	if string(b) != "new-b" {
+		t.Errorf("b.conf = %q, want %q", string(b), "new-b")
+	}
+}
+
+// TestPhaseDotfilesSymlink verifies that symlinks in the dotfiles source are
+// preserved as symlinks at the destination.
+func TestPhaseDotfilesSymlink(t *testing.T) {
+	src := t.TempDir()
+	home := t.TempDir()
+
+	// Source: real-file and a symlink to it.
+	if err := os.WriteFile(filepath.Join(src, "real-file"), []byte("target"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("real-file", filepath.Join(src, "link-file")); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("PROVISIONER_DOTFILES", src)
+	p := &Provisioner{Cfg: config.Provision{Home: home, User: "dailyuser"}, Runner: &fakeRunner{}}
+	if err := p.phaseDotfiles(p); err != nil {
+		t.Fatalf("phaseDotfiles: %v", err)
+	}
+
+	// Symlink preserved (not dereferenced).
+	target, err := os.Readlink(filepath.Join(home, "link-file"))
+	if err != nil {
+		t.Fatalf("link-file should be a symlink: %v", err)
+	}
+	if target != "real-file" {
+		t.Errorf("symlink target = %q, want %q", target, "real-file")
+	}
+}
+
+// TestPhaseDotfilesEmptyEnv verifies no-op when the env var is unset or the
+// directory doesn't exist.
+func TestPhaseDotfilesEmptyEnv(t *testing.T) {
+	p := &Provisioner{Cfg: config.Provision{Home: t.TempDir(), User: "dailyuser"}, Runner: &fakeRunner{}}
+
+	// Unset env var: no-op.
+	if err := p.phaseDotfiles(p); err != nil {
+		t.Errorf("empty env: %v", err)
+	}
+
+	// Nonexistent dir: no-op.
+	t.Setenv("PROVISIONER_DOTFILES", "/nonexistent/dotfiles")
+	if err := p.phaseDotfiles(p); err != nil {
+		t.Errorf("nonexistent dir: %v", err)
+	}
+}
+
+// ── Phase filter tests ─────────────────────────────────────────────────────
+
+// TestRunAllPhaseFilter verifies --phase filters to a single phase.
+func TestRunAllPhaseFilter(t *testing.T) {
+	cfg := config.Default()
+	cfg.Fcitx5SetupPath = ""
+	cfg.CCSwitchDeb = ""
+	cfg.EnvDPath = t.TempDir() + "/env.d/zz-provisioner.conf"
+	fr := &fakeRunner{}
+	p := &Provisioner{Cfg: cfg, Runner: fr, Phase: "docker-group"}
+	if err := p.RunAll("/usr/local/bin/provisioner-ubuntu"); err != nil {
+		t.Fatalf("RunAll with phase filter: %v", err)
+	}
+	// Only the selected phase ran.
+	if !fr.had("usermod -aG docker") {
+		t.Error("docker-group should have run")
+	}
+	if fr.had("apt-get update") {
+		t.Error("apt-update should NOT run when filtered to docker-group")
+	}
+}
+
+// TestRunAllPhaseFilterUnknown verifies an unknown phase name returns an error.
+func TestRunAllPhaseFilterUnknown(t *testing.T) {
+	cfg := config.Default()
+	cfg.Fcitx5SetupPath = ""
+	cfg.EnvDPath = t.TempDir() + "/env.d/zz-provisioner.conf"
+	fr := &fakeRunner{}
+	p := &Provisioner{Cfg: cfg, Runner: fr, Phase: "nope"}
+	err := p.RunAll("/usr/local/bin/provisioner-ubuntu")
+	if err == nil {
+		t.Fatal("expected error for unknown phase")
+	}
+	if !strings.Contains(err.Error(), "unknown phase") {
+		t.Errorf("error should say 'unknown phase', got: %v", err)
+	}
+}
+
+// TestRunAllPhaseFilterUserPhase verifies --phase works for user phases too.
+func TestRunAllPhaseFilterUserPhase(t *testing.T) {
+	cfg := config.Default()
+	cfg.Fcitx5SetupPath = ""
+	cfg.CCSwitchDeb = ""
+	cfg.EnvDPath = t.TempDir() + "/env.d/zz-provisioner.conf"
+	fr := &fakeRunner{}
+	p := &Provisioner{Cfg: cfg, Runner: fr, Phase: "git-config"}
+	if err := p.RunAll("/usr/local/bin/provisioner-ubuntu"); err != nil {
+		t.Fatalf("RunAll with user phase filter: %v", err)
+	}
+	if !fr.had("provision-user git-config") {
+		t.Error("git-config user phase should be dispatched")
+	}
+	if fr.had("apt-get update") {
+		t.Error("root phases should NOT run when filtered to git-config")
+	}
+}
+
+// TestRunAllPhaseFilterEmpty runs all phases (backward compat).
+func TestRunAllPhaseFilterEmpty(t *testing.T) {
+	cfg := config.Default()
+	cfg.Fcitx5SetupPath = ""
+	cfg.CCSwitchDeb = ""
+	cfg.EnvDPath = t.TempDir() + "/env.d/zz-provisioner.conf"
+	fr := &fakeRunner{}
+	p := &Provisioner{Cfg: cfg, Runner: fr, Phase: ""}
+	if err := p.RunAll("/usr/local/bin/provisioner-ubuntu"); err != nil {
+		t.Fatalf("RunAll with no filter: %v", err)
+	}
+	if !fr.had("apt-get update") {
+		t.Error("all phases should run when Phase is empty")
+	}
+}

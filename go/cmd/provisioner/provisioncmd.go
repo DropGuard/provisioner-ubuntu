@@ -16,7 +16,8 @@ import (
 // provisionCmd runs first-boot provisioning as root. User-owned phases are run
 // by re-executing this binary as the target user (provision-user subcommand).
 func provisionCmd() *cobra.Command {
-	return &cobra.Command{
+	var phase string
+	cmd := &cobra.Command{
 		Use:   "provision",
 		Short: "Run first-boot provisioning (needs root)",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -36,7 +37,7 @@ func provisionCmd() *cobra.Command {
 			if dotfiles := paths.DotfilesDir; dirExists(dotfiles) {
 				os.Setenv("PROVISIONER_DOTFILES", dotfiles)
 			}
-			p := &provision.Provisioner{Cfg: cfg, Runner: provision.ExecRunner{}}
+			p := &provision.Provisioner{Cfg: cfg, Runner: provision.ExecRunner{}, Phase: phase}
 			// A FailFast phase error propagates here, so the oneshot service is
 			// marked failed and can be retried with `systemctl restart
 			// first-boot.service` after fixing the cause.
@@ -46,6 +47,8 @@ func provisionCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&phase, "phase", "", "run only the named phase")
+	return cmd
 }
 
 // provisionUserCmd is the re-entered half: it runs a single user-owned phase

@@ -1,164 +1,122 @@
 # Ubuntu Provisioning System
 
-> Fully automated Ubuntu desktop setup — from bare metal to fully configured development environment.
+**This is for personal, single-user Ubuntu desktops used for day-to-day development. It is not designed for servers or multi-user machines — trying to use it that way will break things, possibly badly.**
 
-This project automates an Ubuntu install end-to-end using **cloud-init autoinstall** + a **post-install provisioner**, implemented as a single Go binary (`go/`). The bash-era scripts in `scripts/` remain only as deployed artifacts (`first-boot.service`, `setup-fcitx5-chinese.sh`) — the Go tool is authoritative.
+> Plug in a USB drive, walk away, come back to a fully configured Ubuntu dev machine.
+
+Zero-interaction desktop setup from bare metal, powered by **cloud-init autoinstall** + a Go **post-install provisioner**.
 
 ---
 
-## Quick Start
+## Usage
 
-### 1. Build the tool
+### 1. Clone & build
 
 ```bash
-cd go
+git clone <this-repo>
+cd provisioner-ubuntu/go
 go build -o /tmp/p ./cmd/provisioner
 ```
 
-### 2. Find your target disk serial
+### 2. Customize (optional)
 
-On the machine you're going to install Ubuntu on (or from a live USB):
+Edit the package lists under `config/` and config files under `dotfiles/`. These are read at runtime — no recompilation required:
+
+| File | Controls |
+|------|----------|
+| `config/apt-packages.list` | System packages via apt |
+| `config/brew-packages.list` | CLI tools via Homebrew |
+| `config/snap-packages.list` | Snap packages |
+| `config/flatpak-packages.list` | Flatpak applications |
+| `config/mise.toml` | Language runtimes (Node, Python, Go, etc.) |
+| `dotfiles/` | User config files (mirrors `$HOME`) |
+
+### 3. Find your target disk serial
+
+On the target machine (or from a live USB):
 
 ```bash
 lsblk -o NAME,SERIAL,MODEL,SIZE
 ```
 
-Copy the `SERIAL` of the disk you want to install to (e.g. `SAMSUNG_MZVL21T0HCLR_S1234567`).
-
-### 3. Assemble the seed payload
-
-`build-payload` packs the provisioner binary, the still-deployed scripts, and `config/` + `dotfiles/` into the tree the installer plants under `nocloud/`:
-
-```bash
-/tmp/p build-payload --out /tmp/payload --repo . --binary /tmp/p
-```
+Copy the `SERIAL` of the disk you want to install to.
 
 ### 4. Build the USB drive
 
 ```bash
-# Download Ubuntu 26.04 desktop ISO
-wget https://releases.ubuntu.com/26.04/ubuntu-26.04-desktop-amd64.iso
+# Assemble the seed payload (binary + scripts + config + dotfiles)
+/tmp/p build-payload --out /tmp/payload --repo .. --binary /tmp/p
 
+# Write the USB
 sudo /tmp/p usb \
   --iso ubuntu-26.04-desktop-amd64.iso \
   --disk /dev/sdb \
-  --serial SAMSUNG_MZVL21T0HCLR_S1234567 \
+  --serial YOUR_DISK_SERIAL \
   --payload /tmp/payload
 ```
 
-**WARNING:** This wipes the entire USB disk. Make sure `--disk` points to the right device.
+**⚠️ `--disk` is wiped entirely. Double-check you're pointing at the USB drive.**
 
 ### 5. Install
 
 1. Insert the USB into the target machine
-2. Boot from USB (UEFI mode)
-3. **Walk away.** The installer runs without any interaction:
-   - Partitions the disk (GPT, ext4, no swap) — **matched by serial**, so it never touches another disk
-   - Creates `dailyuser` (password: `1`)
-   - Copies the payload and enables `first-boot.service`
-   - Configures automatic login, then reboots
+2. Boot in UEFI mode
+3. **Walk away.** The installer runs without interaction: partition → install → create user → copy payload → reboot
 
-### 6. First login
+### 6. First boot
 
-After reboot, `first-boot.service` runs `/usr/local/bin/provision`, which installs everything:
-
-- **System:** Docker, GitHub CLI, cc-switch, GNOME Tweaks, snaps
-- **Dev tools:** Homebrew → mise → Node/Python/Go/Rust/Java/Bun + pnpm/maven/uv/ruff
-- **CLI:** reasonix, opencode, Claude Code
-- **Desktop:** Dark theme, dock favorites, keyboard shortcuts, Chinese input (fcitx5)
-- **Shell:** `.bashrc` with brew + mise activation
-
-Progress is printed to the journal (`journalctl -u first-boot.service`). **Core packages fail fast** — if they fail, the service is marked failed and you can retry with `systemctl restart first-boot.service` after fixing the cause. Everything else is best-effort with warnings.
-
----
-
-## Validating in a VM (KVM machine)
-
-On a machine with CPU virtualization:
+After reboot, `first-boot.service` runs the provisioner automatically. Check progress:
 
 ```bash
-# Full install in a VM (~40 min): builds the repacked ISO, boots it, waits
-/tmp/p test-vm --iso ubuntu-26.04-desktop-amd64.iso --payload /tmp/payload --work /tmp/vmtest
-
-# Assert the installed disk actually contains a successful autoinstall
-/tmp/p verify-disk --disk /tmp/vmtest/target.qcow2
+journalctl -u first-boot.service
 ```
 
-`verify-disk` checks the partition layout (ESP + ext4 root) and the files the installer and late-commands must have produced.
+Core packages fail fast — retry with `systemctl restart first-boot.service`. Everything else is best-effort; failures don't block the rest.
 
 ---
 
-## What's in the box
+## Validating changes (KVM)
 
-```
-provisioner-ubuntu/
-├── go/                      # Go module (authoritative)
-│   ├── cmd/provisioner/     # cobra CLI: config-gen, build-payload, test-vm, verify-disk, provision, usb
-│   └── internal/
-│       ├── autoinstall/     # typed config → user-data + grub.cfg (yaml.v3)
-│       ├── config/          # typed provisioning config + runtime Load() from config/
-│       ├── payload/         # build-payload assembly
-│       ├── provision/       # provisioning phases (root/user split via self re-exec)
-│       ├── paths/           # on-target deployment paths (single source)
-│       ├── usb/             # USB build
-│       └── vmtest/          # pure-Go disk verifier + QEMU harness
-├── config/                  # apt/brew/mise lists — single source of truth, read at runtime
-├── dotfiles/                # copied to /home/dailyuser during provisioning
-└── scripts/                 # deployed artifacts only (first-boot.service, setup-fcitx5, fav, test-env-loading)
-```
-
----
-
-## Customization
-
-| File | What it controls |
-|---|---|
-| `config/apt-packages.list` | System packages via `apt` (`# --- core` section = fail-fast, rest = best-effort) |
-| `config/brew-packages.list` | CLI tools via Homebrew |
-| `config/mise.toml` | Language runtimes (Node, Python, Go, etc.) |
-
-Edit the files, then rebuild the payload and the USB. The provisioner reads them at runtime — **no recompile needed**.
-
-To set git identity during provisioning, export these before the first boot (e.g. in `scripts/first-boot.service`):
+No need to rebuild a USB to test provisioner or config changes:
 
 ```bash
-GIT_USER_NAME="Your Name"
-GIT_USER_EMAIL="you@example.com"
+# Phase A: full install test (~40 min), produces a golden image
+/tmp/p test-vm --iso ubuntu-26.04-desktop-amd64.iso --payload /tmp/payload --golden
+
+# Phase B: quick assertions against the golden image (did autoinstall succeed?)
+/tmp/p test-e2e --iso ubuntu-26.04-desktop-amd64.iso
+
+# Phase C: run the provisioner against the golden image (test config/dotfile changes)
+/tmp/p test-provision --base /path/to/golden.qcow2 --binary /tmp/p --repo ..
 ```
+
+For day-to-day package or dotfile changes, just run Phase C — it takes minutes, not a full reinstall.
 
 ---
 
 ## Re-running
 
-Provisioning is idempotent — you can run it again anytime:
+Provisioning is idempotent — already-installed packages are skipped:
 
 ```bash
 sudo /usr/local/bin/provision
 ```
 
-Already-installed packages are skipped (checked via `dpkg-query`). Useful when you update a config file later and want to apply changes without reinstalling the OS.
-
 ---
 
 ## Security notes
 
-- **dailyuser** has password `1` — change it after setup with `passwd`
-- **Auto-login** is enabled via GDM — disable in `Settings → Users` if you prefer a login prompt
-- **sudo** still requires the password — only login is automatic
-- **No disk encryption** — this is a single-user desktop setup
+- **dailyuser** password is `1` — change it after setup: `passwd`
+- **Auto-login** is enabled via GDM — disable in Settings → Users if you prefer a login prompt
+- **sudo** still requires the password
+- **No disk encryption** — single-user desktop setup
 
 ---
 
 ## Troubleshooting
 
-**The installer didn't auto-start.**
-Make sure you're booting in UEFI mode (not Legacy/CSM). Check BIOS settings.
+**Installer didn't auto-start.** Make sure you're booting in UEFI mode, not Legacy/CSM.
 
-**provision didn't run on first boot.**
-Check the journal: `journalctl -u first-boot.service`. Run it manually: `sudo /usr/local/bin/provision`.
+**Provision didn't run on first boot.** Check `journalctl -u first-boot.service`, or run manually: `sudo /usr/local/bin/provision`.
 
-**Some packages failed.**
-Re-run `sudo /usr/local/bin/provision` — it skips already-installed packages and retries failures.
-
-**cc-switch failed to install.**
-The GitHub API may be rate-limited. Wait a few minutes and re-run `provision`.
+**Some packages failed.** Re-run `sudo /usr/local/bin/provision` — it skips installed packages and retries failures.
