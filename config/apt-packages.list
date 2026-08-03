@@ -21,6 +21,7 @@ htop
 ncdu
 bat
 fd-find
+plocate
 kitty
 
 # --- GNOME ---
@@ -29,7 +30,7 @@ gnome-shell-extensions
 chrome-gnome-shell
 
 # --- media ---
-vlc
+mpv
 qimgv
 flameshot
 gh

@@ -22,11 +22,6 @@ type Identity struct {
 	PasswordHash string // from `openssl passwd -6` (or argon2) at build time
 }
 
-// Snap is a snap to install during autoinstall. Code-style snaps need Classic.
-type Snap struct {
-	Name    string
-	Classic bool
-}
 
 // Config is the typed autoinstall configuration. It mirrors the fields of
 // autoinstall/autoinstall.yaml.
@@ -37,7 +32,6 @@ type Config struct {
 	Keyboard     string
 	DiskSerial   string
 	Packages     []string
-	Snaps        []Snap
 	SSHAllowPW   bool
 	AptMirror    string   // primary apt mirror for the install (cloud-init apt: module)
 	AptProxy     string   // apt proxy (e.g. host apt-cacher-ng at 10.0.2.2:3142); empty = none
@@ -68,11 +62,6 @@ func Default() Config {
 		// (rendered into user-data). archive.ubuntu.com is ~90KB/s via this
 		// host's proxy vs ~1.6MB/s for the China mirror.
 		AptMirror: "mirrors.ustc.edu.cn",
-		Snaps: []Snap{
-			{Name: "firefox"},
-			{Name: "obsidian"},
-			{Name: "code", Classic: true},
-		},
 		SSHAllowPW: true,
 		Reboot:     true,
 		LateCommand: []string{

@@ -15,6 +15,11 @@ import (
 )
 
 // Provision configures the post-install provisioning run (provision.sh port).
+type Snap struct {
+	Name    string
+	Classic bool
+}
+
 type Provision struct {
 	User string // target user, e.g. "dailyuser"
 	Home string // target user home, e.g. "/home/dailyuser"
@@ -24,6 +29,8 @@ type Provision struct {
 	CorePackages    []string // fail-fast if these fail
 	ExtraPackages   []string // best-effort
 	AddUserToDocker bool
+	Snaps           []Snap   // snaps to install
+	Flatpaks        []string // flatpaks to install
 
 	// Phase 1 — dev toolchain (user)
 	BrewPrefix   string
@@ -78,6 +85,14 @@ func Default() Provision {
 			"vlc", "qimgv", "flameshot", "gh",
 		},
 		AddUserToDocker: true,
+		Snaps: []Snap{
+			{Name: "firefox"},
+			{Name: "code", Classic: true},
+		},
+		Flatpaks: []string{
+			"com.usebottles.bottles",
+			"md.obsidian.Obsidian",
+		},
 
 		BrewPrefix:   "/home/linuxbrew/.linuxbrew",
 		BrewPackages: []string{"yazi", "tokei"},
@@ -109,9 +124,21 @@ func Default() Provision {
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 eval "$($HOME/.local/bin/mise activate bash)"
 
+eval "$(zoxide init bash)"
+
 # >>> Proxy toggles <<<
 alias proxy='export http_proxy="http://127.0.0.1:7897" https_proxy="http://127.0.0.1:7897" all_proxy="socks5://127.0.0.1:7897"; echo "Terminal proxy ON"'
 alias unproxy='unset http_proxy https_proxy all_proxy; echo "Terminal proxy OFF"'
+
+# >>> yazi: cwd on exit <<<
+function y() {
+	local tmp="$(mktemp -t "yazi-cwd.XXXXXX")"
+	yazi "$@" --cwd-file="$tmp"
+	if cwd="$(command cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
+		builtin cd -- "$cwd"
+	fi
+	rm -f -- "$tmp"
+}
 `,
 		EnvDPath: "/etc/environment.d/zz-provisioner.conf",
 		EnvDConf: `PATH="/home/linuxbrew/.linuxbrew/bin:/home/dailyuser/.local/bin:/home/dailyuser/.local/share/mise/shims:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin"
@@ -139,14 +166,20 @@ func Load(dir string) (Provision, error) {
 	if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
 		return cfg, nil
 	}
-	if err := loadAptList(&cfg, filepath.Join(dir, "apt-packages.list")); err != nil {
-		return cfg, err
+	loaders := []struct {
+		file string
+		fn   func(*Provision, string) error
+	}{
+		{"apt-packages.list", loadAptList},
+		{"brew-packages.list", loadBrewList},
+		{"snap-packages.list", loadSnapList},
+		{"flatpak-packages.list", loadFlatpakList},
+		{"mise.toml", loadMiseToml},
 	}
-	if err := loadBrewList(&cfg, filepath.Join(dir, "brew-packages.list")); err != nil {
-		return cfg, err
-	}
-	if err := loadMiseToml(&cfg, filepath.Join(dir, "mise.toml")); err != nil {
-		return cfg, err
+	for _, l := range loaders {
+		if err := l.fn(&cfg, filepath.Join(dir, l.file)); err != nil {
+			return cfg, err
+		}
 	}
 	return cfg, nil
 }
@@ -318,4 +351,38 @@ func validateMise(path string) []error {
 		errs = append(errs, fmt.Errorf("%s: no `key = \"value\"` entries under [tools]", path))
 	}
 	return errs
+}
+
+// loadFlatpakList reads one package per line (comments/blank lines ignored).
+func loadFlatpakList(cfg *Provision, path string) error {
+	return loadIfExists(path, func(b []byte) error {
+		var pkgs []string
+		for _, line := range strings.Split(string(b), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			pkgs = append(pkgs, line)
+		}
+		cfg.Flatpaks = pkgs
+		return nil
+	})
+}
+
+// loadSnapList reads one package per line.
+func loadSnapList(cfg *Provision, path string) error {
+	return loadIfExists(path, func(b []byte) error {
+		var snaps []Snap
+		for _, line := range strings.Split(string(b), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			classic := strings.HasSuffix(line, " --classic")
+			name := strings.TrimSpace(strings.TrimSuffix(line, " --classic"))
+			snaps = append(snaps, Snap{Name: name, Classic: classic})
+		}
+		cfg.Snaps = snaps
+		return nil
+	})
 }

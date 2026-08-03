@@ -41,7 +41,6 @@ type autoinstall struct {
 	Keyboard  keyboard `yaml:"keyboard"`
 	Storage   storage  `yaml:"storage"`
 	Packages  []string `yaml:"packages"`
-	Snaps     []snap   `yaml:"snaps"`
 	SSH       sshConf  `yaml:"ssh"`
 	EarlyCmds []string `yaml:"early-commands,omitempty"`
 	LateCmds  []string `yaml:"late-commands"`
@@ -82,10 +81,6 @@ type swap struct {
 	Size int `yaml:"size"`
 }
 
-type snap struct {
-	Name    string `yaml:"name"`
-	Classic bool   `yaml:"classic,omitempty"`
-}
 
 type sshConf struct {
 	InstallServer bool `yaml:"install-server"`
@@ -110,7 +105,6 @@ func RenderUserData(c Config) (string, error) {
 				Swap:   swap{Size: 0},
 			},
 			Packages:  c.Packages,
-			Snaps:     makeSnaps(c.Snaps),
 			SSH:       sshConf{InstallServer: true, AllowPW: c.SSHAllowPW},
 			EarlyCmds: c.EarlyCommand,
 			LateCmds:  c.LateCommand,
@@ -160,13 +154,6 @@ func targetAptConf(mirror, proxy string) *aptConf {
 	return c
 }
 
-func makeSnaps(snaps []Snap) []snap {
-	out := make([]snap, 0, len(snaps))
-	for _, s := range snaps {
-		out = append(out, snap{Name: s.Name, Classic: s.Classic})
-	}
-	return out
-}
 
 func shutdownAction(reboot bool) string {
 	if reboot {

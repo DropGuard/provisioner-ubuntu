@@ -366,3 +366,38 @@ func (p *Provisioner) phaseDisableService(*Provisioner) error {
 	_, err := p.Runner.Run("", "systemctl", "disable", "first-boot.service")
 	return err
 }
+
+// phaseSnaps installs Snap packages (moved from cloud-init for architectural consistency).
+func (p *Provisioner) phaseSnaps(pr *Provisioner) error {
+	for _, snap := range p.Cfg.Snaps {
+		args := []string{"install", snap.Name}
+		if snap.Classic {
+			args = append(args, "--classic")
+		}
+		if _, err := p.Runner.Run("", "snap", args...); err != nil {
+			log.Printf("  warn: snap install %s failed: %v", snap.Name, err)
+		}
+	}
+	return nil
+}
+
+// phaseFlatpaks installs flatpak, adds flathub, and installs packages
+func (p *Provisioner) phaseFlatpaks(pr *Provisioner) error {
+	// 1. Ensure flatpak is installed
+	if _, err := p.Runner.Run("", "apt-get", "install", "-y", "flatpak"); err != nil {
+		return err
+	}
+	
+	// 2. Add flathub repository
+	if _, err := p.Runner.Run("", "flatpak", "remote-add", "--if-not-exists", "flathub", "https://dl.flathub.org/repo/flathub.flatpakrepo"); err != nil {
+		return err
+	}
+
+	// 3. Install configured flatpaks
+	for _, pkg := range p.Cfg.Flatpaks {
+		if _, err := p.Runner.Run("", "flatpak", "install", "-y", "flathub", pkg); err != nil {
+			log.Printf("  warn: flatpak install %s failed: %v", pkg, err)
+		}
+	}
+	return nil
+}

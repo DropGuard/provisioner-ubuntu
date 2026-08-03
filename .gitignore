@@ -1,6 +1,7 @@
 *.iso
 *.img
 __pycache__/
+go/provisioner
 
 # Secrets — never commit
 config/github_token.txt.txt

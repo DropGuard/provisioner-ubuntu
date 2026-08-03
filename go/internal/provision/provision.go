@@ -43,6 +43,8 @@ func (p *Provisioner) Phases() []Phase {
 		{Name: "apt-mirror", Run: p.phaseAptMirror},
 		{Name: "apt-update", Run: p.phaseAptUpdate},
 		{Name: "core-packages", FailFast: true, Run: p.phaseCorePackages},
+		{Name: "snaps", Run: p.phaseSnaps},
+		{Name: "flatpaks", Run: p.phaseFlatpaks},
 		// enpass-repo after core-packages so curl is available (it isn't on the
 		// minimal golden image before then).
 		{Name: "enpass-repo", Run: p.phaseEnpassRepo},
