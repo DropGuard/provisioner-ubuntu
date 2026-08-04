@@ -1,12 +1,92 @@
 package provision
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
+
+// installed reports whether pkg is actually installed. `dpkg -s` exits 0 even
+// for packages left in "deinstall ok config-files" state (removed but config
+// retained), so it must not be used for idempotency checks — that would skip
+// re-installing a half-removed package. Match the exact status string instead.
+func (p *Provisioner) installed(pkg string) bool {
+	out, err := p.Runner.Run("", "dpkg-query", "-W", "-f=${Status}", pkg)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(out, "install ok installed")
+}
+
+// proxySubscriptionFile is the gitignored file in the payload config dir
+// holding the clash subscription URL (config/proxy-subscription.txt). Absent =>
+// the proxy bootstrap is skipped and github-dependent installs fail (as before).
+const proxySubscriptionFile = "proxy-subscription.txt"
+
+// prefillVergeProfile seeds ~/.config/clash-verge/profiles.yaml plus the
+// already-fetched profile file, so the installed GUI shows the subscription on
+// first login. cfgPath is the fetched subscription config (clash format).
+func (p *Provisioner) prefillVergeProfile(subURL, cfgPath string) error {
+	uid := "R" + randHex(8)
+	dir := filepath.Join(p.Cfg.Home, ".config", "clash-verge")
+	if err := os.MkdirAll(filepath.Join(dir, "profiles"), 0o755); err != nil {
+		return err
+	}
+	cfg, err := os.ReadFile(cfgPath)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(dir, "profiles", uid+".yaml"), cfg, 0o644); err != nil {
+		return err
+	}
+	profiles := fmt.Sprintf("current: %s\nitems:\n  - uid: %s\n    itype: remote\n    file: %s.yaml\n    url: %q\n    name: subscription\n",
+		uid, uid, uid, subURL)
+	if err := os.WriteFile(filepath.Join(dir, "profiles.yaml"), []byte(profiles), 0o644); err != nil {
+		return err
+	}
+	_, err = p.Runner.Run("", "chown", "-R", p.Cfg.User+":"+p.Cfg.User, dir)
+	return err
+}
+
+// randHex returns n random hex chars (crypto-grade, for verge profile uids).
+func randHex(n int) string {
+	b := make([]byte, n/2+1)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("x%08x", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(b)[:n]
+}
+
+// gnomeSet runs a gsettings command as the target user. Without a live session
+// the change lands in the user's dconf and applies at next login.
+func (p *Provisioner) gnomeSet(schema, key, value string) error {
+	_, err := p.Runner.Run(p.Cfg.User, "gsettings", "set", schema, key, value)
+	return err
+}
+
+// favoritesExpr renders the GVariant array literal gsettings expects for
+// org.gnome.shell favorite-apps: each entry single-quoted, comma-separated,
+// wrapped in [ ] (e.g. "['a.desktop', 'b.desktop']").
+func favoritesExpr(apps []string) string {
+	return "[" + strings.Join(mapSlice(apps, func(s string) string {
+		return "'" + s + "'"
+	}), ", ") + "]"
+}
+
+// --- helpers ---
+
+func mapSlice[T any, U any](in []T, f func(T) U) []U {
+	out := make([]U, len(in))
+	for i, v := range in {
+		out[i] = f(v)
+	}
+	return out
+}
 
 // copyFile copies a single regular file from src to dst.
 func copyFile(src, dst string, mode os.FileMode) error {
@@ -25,100 +105,6 @@ func copyFile(src, dst string, mode os.FileMode) error {
 	defer out.Close()
 	_, err = io.Copy(out, in)
 	return err
-}
-
-// phaseCCSwitch installs the cc-switch .deb if a path is configured. Optional.
-func (p *Provisioner) phaseCCSwitch(*Provisioner) error {
-	if p.Cfg.CCSwitchDeb == "" {
-		return nil
-	}
-	if _, err := os.Stat(p.Cfg.CCSwitchDeb); err != nil {
-		return fmt.Errorf("cc-switch deb not found: %s", p.Cfg.CCSwitchDeb)
-	}
-	_, err := p.Runner.Run("", "apt-get", "install", "-y", p.Cfg.CCSwitchDeb)
-	return err
-}
-
-// phaseMountDataDisks mounts the user's existing data disks under /mnt,
-// non-destructively, by UUID. Ported from provision.sh phase_43.
-func (p *Provisioner) phaseMountDataDisks(*Provisioner) error {
-	out, err := p.Runner.Run("", "lsblk", "-d", "-n", "-o", "NAME,SERIAL,FSTYPE")
-	if err != nil {
-		return err
-	}
-	for _, line := range strings.Split(out, "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		name, serial := fields[0], fields[1]
-		fstype := ""
-		if len(fields) >= 3 {
-			fstype = fields[2]
-		}
-		if serial == "" {
-			continue
-		}
-		if _, excluded := p.Cfg.ExcludedSerials[serial]; excluded {
-			continue
-		}
-		part := "/dev/" + name
-		if fstype == "" {
-			// Find the first partition with a filesystem on this disk.
-			po, err := p.Runner.Run("", "lsblk", "-r", "-n", "-o", "PATH,FSTYPE", part)
-			if err != nil {
-				continue
-			}
-			found := ""
-			for _, pl := range strings.Split(po, "\n") {
-				pf := strings.Fields(pl)
-				if len(pf) == 2 && pf[1] != "" {
-					found = pf[0]
-					break
-				}
-			}
-			if found == "" {
-				continue // no filesystem — skip, don't format
-			}
-			part = found
-		}
-		// Get UUID + type.
-		bo, err := p.Runner.Run("", "blkid", "-o", "export", part)
-		if err != nil {
-			continue
-		}
-		uuid, ptype := "", ""
-		for _, l := range strings.Split(bo, "\n") {
-			if v, ok := strings.CutPrefix(l, "UUID="); ok {
-				uuid = v
-			} else if v, ok := strings.CutPrefix(l, "TYPE="); ok {
-				ptype = v
-			}
-		}
-		if uuid == "" {
-			continue
-		}
-		// Idempotent: already in fstab?
-		fstab, err := os.ReadFile("/etc/fstab")
-		if err != nil {
-			return err
-		}
-		if strings.Contains(string(fstab), "UUID="+uuid) {
-			continue
-		}
-		mnt, line := fstabEntry(uuid, serial, ptype)
-		os.MkdirAll(mnt, 0o755)
-		f, err := os.OpenFile("/etc/fstab", os.O_APPEND|os.O_WRONLY, 0o644)
-		if err != nil {
-			return err
-		}
-		_, werr := f.WriteString(line)
-		f.Close()
-		if werr != nil {
-			return werr
-		}
-	}
-	return nil
 }
 
 // fstabEntry builds the mount point and fstab line for one data disk. Pure
