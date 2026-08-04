@@ -42,14 +42,6 @@ func (p *Provisioner) phaseFcitx5(pr *Provisioner) error {
 	rimeDesktop := "[Desktop Entry]\nType=Application\nName=Fcitx5 Rime Setup\nExec=/usr/local/bin/provision setup-im\nTerminal=false\nX-GNOME-Autostart-enabled=true\nX-GNOME-Autostart-Delay=5\n"
 	os.WriteFile(filepath.Join(autoDir, "fcitx5-rime.desktop"), []byte(rimeDesktop), 0o644)
 
-	// 4. Wayland Clipboard Sync Service
-	systemdDir := filepath.Join(p.Cfg.Home, ".config", "systemd", "user")
-	os.MkdirAll(filepath.Join(systemdDir, "default.target.wants"), 0o755)
-	wlClipSvc := "[Unit]\nDescription=Wayland Clipboard to Primary Sync\nAfter=graphical-session.target\n\n[Service]\nType=simple\nExecStart=/usr/bin/wl-paste --watch /usr/bin/wl-copy -p\nRestart=always\nRestartSec=2\n\n[Install]\nWantedBy=default.target\n"
-	svcPath := filepath.Join(systemdDir, "wl-clip-sync.service")
-	os.WriteFile(svcPath, []byte(wlClipSvc), 0o644)
-	os.Symlink(svcPath, filepath.Join(systemdDir, "default.target.wants", "wl-clip-sync.service"))
-
 	// Fix ownership of .config
 	p.Runner.Run("", "chown", "-R", p.Cfg.User+":"+p.Cfg.User, filepath.Join(p.Cfg.Home, ".config"))
 

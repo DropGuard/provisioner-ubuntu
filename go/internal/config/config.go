@@ -114,7 +114,7 @@ func Default() Provision {
 		},
 		Fcitx5Packages: []string{
 			// 26.04 renamed fcitx5-config-gui → fcitx5-config-qt (same binary).
-			"fcitx5", "fcitx5-config-qt", "fcitx5-chinese-addons", "fcitx5-rime", "git", "wl-clipboard",
+			"fcitx5", "fcitx5-config-qt", "fcitx5-chinese-addons", "fcitx5-rime", "git",
 			"fcitx5-frontend-gtk3", "fcitx5-frontend-gtk2", "fcitx5-frontend-gtk4",
 			"fcitx5-frontend-qt5", "fcitx5-frontend-qt6",
 		},
