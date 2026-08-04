@@ -311,9 +311,8 @@ func (p *Provisioner) phaseGPUDrivers(*Provisioner) error {
 	return nil
 }
 
-// phaseFcitx5 installs the fcitx5 packages (root), then runs the user-side
-// setup script as the target user. The script skips its own `sudo apt-get`
-// once fcitx5 is present, so it never prompts for a password.
+// phaseFcitx5 installs fcitx5 (and Rime), downloads the Rime-Ice dictionary,
+// and writes the environment/autostart configuration for the target user.
 func (p *Provisioner) phaseFcitx5(pr *Provisioner) error {
 	if !p.installed("fcitx5") {
 		args := append([]string{"install", "-y"}, p.Cfg.Fcitx5Packages...)
@@ -321,14 +320,43 @@ func (p *Provisioner) phaseFcitx5(pr *Provisioner) error {
 			return fmt.Errorf("fcitx5 apt install: %w", err)
 		}
 	}
-	if p.Cfg.Fcitx5SetupPath == "" {
-		return nil
+
+	// 1. Download Rime-Ice
+	rimeDir := filepath.Join(p.Cfg.Home, ".local", "share", "fcitx5", "rime")
+	if _, err := os.Stat(filepath.Join(rimeDir, ".git")); os.IsNotExist(err) {
+		os.MkdirAll(filepath.Dir(rimeDir), 0o755)
+		p.Runner.Run("", "chown", "-R", p.Cfg.User+":"+p.Cfg.User, filepath.Dir(filepath.Dir(rimeDir)))
+		if _, err := p.Runner.Run(p.Cfg.User, "git", "clone", "--depth=1", "https://github.com/iDvel/rime-ice.git", rimeDir); err != nil {
+			log.Printf("  [WARN] fcitx5 rime-ice clone failed: %v", err)
+		}
 	}
-	if _, err := p.Runner.Run(p.Cfg.User, p.Cfg.Fcitx5SetupPath); err != nil {
-		// D-Bus may not be ready before the user session starts; the script
-		// degrades gracefully. Report as a warning, not a fatal error.
-		log.Printf("  [WARN] fcitx5 user setup: %v (session D-Bus may not be ready — re-run after login)", err)
-	}
+
+	// 2. Write environment.d
+	envDir := filepath.Join(p.Cfg.Home, ".config", "environment.d")
+	os.MkdirAll(envDir, 0o755)
+	envConf := "GTK_IM_MODULE=fcitx5\nQT_IM_MODULE=fcitx5\nXMODIFIERS=@im=fcitx5\nSDL_IM_MODULE=fcitx5\nGLFW_IM_MODULE=ibus\n"
+	os.WriteFile(filepath.Join(envDir, "fcitx5.conf"), []byte(envConf), 0o644)
+
+	// 3. Write autostart
+	autoDir := filepath.Join(p.Cfg.Home, ".config", "autostart")
+	os.MkdirAll(autoDir, 0o755)
+	fcitx5Desktop := "[Desktop Entry]\nType=Application\nName=Fcitx 5\nExec=/usr/bin/fcitx5\nTerminal=false\nX-GNOME-Autostart-enabled=true\nX-GNOME-AutoRestart=true\n"
+	os.WriteFile(filepath.Join(autoDir, "fcitx5.desktop"), []byte(fcitx5Desktop), 0o644)
+
+	rimeDesktop := "[Desktop Entry]\nType=Application\nName=Fcitx5 Rime Setup\nExec=/usr/local/bin/provision setup-im\nTerminal=false\nX-GNOME-Autostart-enabled=true\nX-GNOME-Autostart-Delay=5\n"
+	os.WriteFile(filepath.Join(autoDir, "fcitx5-rime.desktop"), []byte(rimeDesktop), 0o644)
+
+	// 4. Wayland Clipboard Sync Service
+	systemdDir := filepath.Join(p.Cfg.Home, ".config", "systemd", "user")
+	os.MkdirAll(filepath.Join(systemdDir, "default.target.wants"), 0o755)
+	wlClipSvc := "[Unit]\nDescription=Wayland Clipboard to Primary Sync\nAfter=graphical-session.target\n\n[Service]\nType=simple\nExecStart=/usr/bin/wl-paste --watch /usr/bin/wl-copy -p\nRestart=always\nRestartSec=2\n\n[Install]\nWantedBy=default.target\n"
+	svcPath := filepath.Join(systemdDir, "wl-clip-sync.service")
+	os.WriteFile(svcPath, []byte(wlClipSvc), 0o644)
+	os.Symlink(svcPath, filepath.Join(systemdDir, "default.target.wants", "wl-clip-sync.service"))
+
+	// Fix ownership of .config
+	p.Runner.Run("", "chown", "-R", p.Cfg.User+":"+p.Cfg.User, filepath.Join(p.Cfg.Home, ".config"))
+
 	return nil
 }
 
@@ -344,6 +372,7 @@ func (p *Provisioner) phaseShellEnv(*Provisioner) error {
 	}
 	bashrc := filepath.Join(p.Cfg.Home, ".bashrc")
 	data, err := os.ReadFile(bashrc)
+
 	if err != nil {
 		return err
 	}
@@ -387,7 +416,7 @@ func (p *Provisioner) phaseFlatpaks(pr *Provisioner) error {
 	if _, err := p.Runner.Run("", "apt-get", "install", "-y", "flatpak"); err != nil {
 		return err
 	}
-	
+
 	// 2. Add flathub repository
 	if _, err := p.Runner.Run("", "flatpak", "remote-add", "--if-not-exists", "flathub", "https://dl.flathub.org/repo/flathub.flatpakrepo"); err != nil {
 		return err
@@ -397,6 +426,27 @@ func (p *Provisioner) phaseFlatpaks(pr *Provisioner) error {
 	for _, pkg := range p.Cfg.Flatpaks {
 		if _, err := p.Runner.Run("", "flatpak", "install", "-y", "flathub", pkg); err != nil {
 			log.Printf("  warn: flatpak install %s failed: %v", pkg, err)
+		}
+	}
+	return nil
+}
+
+// phaseUFW enables the uncomplicated firewall to secure the machine on public Wi-Fi.
+func (p *Provisioner) phaseUFW(*Provisioner) error {
+	if !p.installed("ufw") {
+		if _, err := p.Runner.Run("", "apt-get", "install", "-y", "ufw"); err != nil {
+			return fmt.Errorf("ufw apt install: %w", err)
+		}
+	}
+	cmds := [][]string{
+		{"default", "deny", "incoming"},
+		{"default", "allow", "outgoing"},
+		{"limit", "22/tcp"}, // allow SSH but throttle brute-force attempts
+		{"--force", "enable"},
+	}
+	for _, args := range cmds {
+		if _, err := p.Runner.Run("", "ufw", args...); err != nil {
+			return fmt.Errorf("ufw %v: %w", args, err)
 		}
 	}
 	return nil

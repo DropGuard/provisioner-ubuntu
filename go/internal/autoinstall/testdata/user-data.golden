@@ -24,11 +24,6 @@ autoinstall:
         - git
         - build-essential
         - qemu-guest-agent
-    snaps:
-        - name: firefox
-        - name: obsidian
-        - name: code
-          classic: true
     ssh:
         install-server: true
         allow-pw: true
@@ -47,10 +42,9 @@ autoinstall:
         - mkdir -p /target/usr/local/share/provisioner-ubuntu/config /target/usr/local/share/provisioner-ubuntu/dotfiles
         - cp /cdrom/nocloud/provision /target/usr/local/bin/provision
         - cp /cdrom/nocloud/fav.sh /target/usr/local/bin/fav 2>/dev/null || true
-        - cp /cdrom/nocloud/setup-fcitx5-chinese.sh /target/usr/local/bin/setup-fcitx5-chinese.sh
         - cp -a /cdrom/nocloud/config/. /target/usr/local/share/provisioner-ubuntu/config/ 2>/dev/null || true
         - cp -a /cdrom/nocloud/dotfiles/. /target/usr/local/share/provisioner-ubuntu/dotfiles/ 2>/dev/null || true
-        - chmod +x /target/usr/local/bin/provision /target/usr/local/bin/fav /target/usr/local/bin/setup-fcitx5-chinese.sh 2>/dev/null || true
+        - chmod +x /target/usr/local/bin/provision /target/usr/local/bin/fav 2>/dev/null || true
         - cp /cdrom/nocloud/first-boot.service /target/etc/systemd/system/first-boot.service
         - curtin in-target --target=/target -- systemctl enable first-boot.service
     shutdown: reboot

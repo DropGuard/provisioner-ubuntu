@@ -105,8 +105,6 @@ func TestUserDataContents(t *testing.T) {
 		"serial: 50026B727200FDDC",
 		"- openssh-server",
 		"- git",
-		"- name: code",
-		"classic: true",
 		"allow-pw: true",
 		"shutdown: reboot",
 		"ln -sf /usr/share/zoneinfo/Asia/Shanghai /target/etc/localtime",

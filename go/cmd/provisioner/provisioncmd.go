@@ -33,7 +33,6 @@ func provisionCmd() *cobra.Command {
 				log.Printf("  [WARN] loading %s: %v (using built-in defaults)", paths.ConfigDir, err)
 				cfg = config.Default()
 			}
-			cfg.Fcitx5SetupPath = paths.Fcitx5Script
 			if dotfiles := paths.DotfilesDir; dirExists(dotfiles) {
 				os.Setenv("PROVISIONER_DOTFILES", dotfiles)
 			}

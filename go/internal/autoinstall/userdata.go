@@ -24,7 +24,7 @@ type aptConf struct {
 	Primary  []aptMirror `yaml:"primary"`
 	Security []aptMirror `yaml:"security,omitempty"`
 	// GeoIP + Conf are autoinstall.apt (target) fields, not cloud-init's.
-	GeoIP *bool  `yaml:"geoip,omitempty"` // false = don't let the installer pick a geo mirror
+	GeoIP *bool   `yaml:"geoip,omitempty"` // false = don't let the installer pick a geo mirror
 	Conf  *string `yaml:"conf,omitempty"`  // apt.conf content (e.g. Acquire proxy)
 }
 
@@ -80,7 +80,6 @@ type grub struct {
 type swap struct {
 	Size int `yaml:"size"`
 }
-
 
 type sshConf struct {
 	InstallServer bool `yaml:"install-server"`
@@ -153,7 +152,6 @@ func targetAptConf(mirror, proxy string) *aptConf {
 	}
 	return c
 }
-
 
 func shutdownAction(reboot bool) string {
 	if reboot {

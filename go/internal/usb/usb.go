@@ -19,11 +19,11 @@ import (
 
 // Options for building the USB.
 type Options struct {
-	ISO     string            // original Ubuntu desktop ISO
-	Disk    string            // block device, e.g. /dev/sdb (WILL BE WIPED)
-	Serial  string            // target system disk serial (autoinstall match)
-	User    string            // created user
-	Payload map[string][]byte // files under nocloud/: "provision", "first-boot.service", "setup-fcitx5-chinese.sh", "config/...", "dotfiles/..."
+	ISO     string // original Ubuntu desktop ISO
+	Disk    string // block device, e.g. /dev/sdb (WILL BE WIPED)
+	Serial  string // target system disk serial (autoinstall match)
+	User    string // created user
+	Payload map[string][]byte
 }
 
 // Build wipes and populates the USB drive.

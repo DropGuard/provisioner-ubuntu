@@ -56,7 +56,8 @@ func PrepareTestISO(opts TestOptions) (*PreparedISO, error) {
 		return nil, fmt.Errorf("SourceISO required")
 	}
 	if opts.WorkDir == "" {
-		home, _ := os.UserHomeDir(); opts.WorkDir = filepath.Join(home, ".cache", "vmtest-work")
+		home, _ := os.UserHomeDir()
+		opts.WorkDir = filepath.Join(home, ".cache", "vmtest-work")
 	}
 	if opts.DiskSerial == "" {
 		opts.DiskSerial = defaultDiskSerial
@@ -226,7 +227,7 @@ type BootOptions struct {
 	Disk    string // the installed qcow2 (or an overlay) to boot
 	WorkDir string
 	Serial  string
-	Seed    string // optional payload ISO (non-cidata label) mounted by the guest placement script
+	Seed    string        // optional payload ISO (non-cidata label) mounted by the guest placement script
 	Timeout time.Duration // max wait for the guest's sshd to accept auth
 }
 
@@ -255,7 +256,8 @@ func BootReady(o BootOptions) (*BootSession, error) {
 		return nil, fmt.Errorf("Disk required")
 	}
 	if o.WorkDir == "" {
-		home, _ := os.UserHomeDir(); o.WorkDir = filepath.Join(home, ".cache", "vmtest-boot")
+		home, _ := os.UserHomeDir()
+		o.WorkDir = filepath.Join(home, ".cache", "vmtest-boot")
 	}
 	if o.Serial == "" {
 		o.Serial = defaultDiskSerial
@@ -358,6 +360,7 @@ func opensslPasswd() (string, error) {
 	}
 	return strings.TrimSpace(string(out)), nil
 }
+
 // GoldenImagePath returns the cached golden image path for a given ISO hash and
 // golden version (autoinstall.GoldenVersion). Bump the version to force a
 // rebuild after changing Golden()'s base config — the golden is otherwise
@@ -384,4 +387,3 @@ func CacheGoldenImage(isoHash, version, src string) error {
 	}
 	return copyFile(src, dst)
 }
-

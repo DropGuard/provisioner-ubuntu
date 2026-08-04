@@ -53,8 +53,7 @@ func (f *fakeRunner) had(substr string) bool {
 // via the self re-exec path (`sudo -u dailyuser <self> provision-user <phase>`).
 func TestRunAllOrchestration(t *testing.T) {
 	cfg := config.Default()
-	cfg.Fcitx5SetupPath = "" // no script to run
-	cfg.CCSwitchDeb = ""     // skip
+	cfg.CCSwitchDeb = "" // skip
 	cfg.EnvDPath = t.TempDir() + "/env.d/zz-provisioner.conf"
 	// All packages default to "not installed" (empty pkgStatus), so the
 	// install commands actually run.
@@ -228,7 +227,6 @@ func TestFavoritesExpr(t *testing.T) {
 // oneshot service can be marked failed and retried.
 func TestRunAllFailFast(t *testing.T) {
 	cfg := config.Default()
-	cfg.Fcitx5SetupPath = ""
 	cfg.CCSwitchDeb = ""
 	cfg.EnvDPath = t.TempDir() + "/env.d/zz-provisioner.conf"
 	fr := &fakeRunner{failContains: []string{"apt-get install -y build-essential"}}
@@ -252,7 +250,6 @@ func TestRunAllFailFast(t *testing.T) {
 // non-user phases.
 func TestRunUserPhaseByName(t *testing.T) {
 	cfg := config.Default()
-	cfg.Fcitx5SetupPath = ""
 	p := &Provisioner{Cfg: cfg, Runner: &fakeRunner{}}
 	if err := p.RunUserPhaseByName("homebrew"); err != nil {
 		t.Errorf("homebrew should run: %v", err)
@@ -482,7 +479,6 @@ func TestPhaseDotfilesEmptyEnv(t *testing.T) {
 // TestRunAllPhaseFilter verifies --phase filters to a single phase.
 func TestRunAllPhaseFilter(t *testing.T) {
 	cfg := config.Default()
-	cfg.Fcitx5SetupPath = ""
 	cfg.CCSwitchDeb = ""
 	cfg.EnvDPath = t.TempDir() + "/env.d/zz-provisioner.conf"
 	fr := &fakeRunner{}
@@ -502,7 +498,6 @@ func TestRunAllPhaseFilter(t *testing.T) {
 // TestRunAllPhaseFilterUnknown verifies an unknown phase name returns an error.
 func TestRunAllPhaseFilterUnknown(t *testing.T) {
 	cfg := config.Default()
-	cfg.Fcitx5SetupPath = ""
 	cfg.EnvDPath = t.TempDir() + "/env.d/zz-provisioner.conf"
 	fr := &fakeRunner{}
 	p := &Provisioner{Cfg: cfg, Runner: fr, Phase: "nope"}
@@ -518,7 +513,6 @@ func TestRunAllPhaseFilterUnknown(t *testing.T) {
 // TestRunAllPhaseFilterUserPhase verifies --phase works for user phases too.
 func TestRunAllPhaseFilterUserPhase(t *testing.T) {
 	cfg := config.Default()
-	cfg.Fcitx5SetupPath = ""
 	cfg.CCSwitchDeb = ""
 	cfg.EnvDPath = t.TempDir() + "/env.d/zz-provisioner.conf"
 	fr := &fakeRunner{}
@@ -537,7 +531,6 @@ func TestRunAllPhaseFilterUserPhase(t *testing.T) {
 // TestRunAllPhaseFilterEmpty runs all phases (backward compat).
 func TestRunAllPhaseFilterEmpty(t *testing.T) {
 	cfg := config.Default()
-	cfg.Fcitx5SetupPath = ""
 	cfg.CCSwitchDeb = ""
 	cfg.EnvDPath = t.TempDir() + "/env.d/zz-provisioner.conf"
 	fr := &fakeRunner{}

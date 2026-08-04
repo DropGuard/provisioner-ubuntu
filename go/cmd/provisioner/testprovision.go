@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/ssh"
 	"github.com/spf13/cobra"
+	"golang.org/x/crypto/ssh"
 
 	"provisioner-ubuntu/internal/payload"
 	"provisioner-ubuntu/internal/vmtest"
@@ -108,11 +108,9 @@ mkdir -p /mnt/payload /usr/local/share/provisioner-ubuntu/config /usr/local/shar
 mount -t iso9660 -o ro /dev/disk/by-label/provision-payload /mnt/payload
 cp /mnt/payload/provision /usr/local/bin/provision
 cp /mnt/payload/first-boot.service /etc/systemd/system/first-boot.service
-cp /mnt/payload/setup-fcitx5-chinese.sh /usr/local/bin/setup-fcitx5-chinese.sh
 cp /mnt/payload/fav.sh /usr/local/bin/fav 2>/dev/null || true
 cp -a /mnt/payload/config/. /usr/local/share/provisioner-ubuntu/config/
 cp -a /mnt/payload/dotfiles/. /usr/local/share/provisioner-ubuntu/dotfiles/
-chmod +x /usr/local/bin/provision /usr/local/bin/setup-fcitx5-chinese.sh /usr/local/bin/fav
 systemctl daemon-reload
 systemctl enable --now --no-block first-boot.service
 `

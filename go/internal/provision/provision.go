@@ -77,6 +77,7 @@ func (p *Provisioner) Phases() []Phase {
 		{Name: "git-config", User: true, Run: p.phaseGitConfig},
 		{Name: PhaseDotfiles, User: true, Run: p.phaseDotfiles},
 		{Name: "mount-data-disks", Run: p.phaseMountDataDisks},
+		{Name: "ufw", Run: p.phaseUFW},
 		{Name: "disable-service", Run: p.phaseDisableService},
 	}
 }

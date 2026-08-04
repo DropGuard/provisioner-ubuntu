@@ -25,7 +25,7 @@ type Provision struct {
 	Home string // target user home, e.g. "/home/dailyuser"
 
 	// Phase 0 — base environment (root)
-	AptMirror       string // primary apt mirror (e.g. mirrors.ustc.edu.cn)
+	AptMirror       string   // primary apt mirror (e.g. mirrors.ustc.edu.cn)
 	CorePackages    []string // fail-fast if these fail
 	ExtraPackages   []string // best-effort
 	AddUserToDocker bool
@@ -42,10 +42,9 @@ type Provision struct {
 	NPMGlobals []string
 
 	// Phase 3 — GNOME desktop
-	GnomeTheme      bool // dark theme
-	DockFavorites   []string
-	Fcitx5Packages  []string
-	Fcitx5SetupPath string // setup-fcitx5-chinese.sh next to the binary
+	GnomeTheme     bool // dark theme
+	DockFavorites  []string
+	Fcitx5Packages []string
 
 	// GPU drivers (root): install the recommended NVIDIA driver if an NVIDIA
 	// GPU is present. AMD/Intel use in-kernel drivers and need nothing.
@@ -76,7 +75,7 @@ func Default() Provision {
 		// The 26.04 desktop installer ignores autoinstall's `apt:` mirror for the
 		// target (writes a geo mirror like jp.archive), so the provision rewrites
 		// the sources itself — see phaseAptMirror.
-		AptMirror:     "mirrors.ustc.edu.cn",
+		AptMirror:    "mirrors.ustc.edu.cn",
 		CorePackages: []string{"build-essential", "curl", "git", "docker.io"},
 		ExtraPackages: []string{
 			"ripgrep", "eza", "unzip", "zip", "protobuf-compiler", "jq", "htop",
@@ -115,7 +114,7 @@ func Default() Provision {
 		},
 		Fcitx5Packages: []string{
 			// 26.04 renamed fcitx5-config-gui → fcitx5-config-qt (same binary).
-			"fcitx5", "fcitx5-config-qt", "fcitx5-chinese-addons",
+			"fcitx5", "fcitx5-config-qt", "fcitx5-chinese-addons", "fcitx5-rime", "git", "wl-clipboard",
 			"fcitx5-frontend-gtk3", "fcitx5-frontend-gtk2", "fcitx5-frontend-gtk4",
 			"fcitx5-frontend-qt5", "fcitx5-frontend-qt6",
 		},

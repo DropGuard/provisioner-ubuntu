@@ -9,9 +9,6 @@ const (
 	// first-boot.service runs it.
 	ProvisionBin = "/usr/local/bin/provision"
 
-	// Fcitx5Script is the still-deployed user-side fcitx5 setup script.
-	Fcitx5Script = "/usr/local/bin/setup-fcitx5-chinese.sh"
-
 	// FavBin is a helper script copied alongside.
 	FavBin = "/usr/local/bin/fav"
 

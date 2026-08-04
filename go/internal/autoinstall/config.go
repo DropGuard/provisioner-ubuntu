@@ -22,7 +22,6 @@ type Identity struct {
 	PasswordHash string // from `openssl passwd -6` (or argon2) at build time
 }
 
-
 // Config is the typed autoinstall configuration. It mirrors the fields of
 // autoinstall/autoinstall.yaml.
 type Config struct {
@@ -61,7 +60,7 @@ func Default() Config {
 		// The install's primary mirror is set via cloud-init's `apt:` module
 		// (rendered into user-data). archive.ubuntu.com is ~90KB/s via this
 		// host's proxy vs ~1.6MB/s for the China mirror.
-		AptMirror: "mirrors.ustc.edu.cn",
+		AptMirror:  "mirrors.ustc.edu.cn",
 		SSHAllowPW: true,
 		Reboot:     true,
 		LateCommand: []string{
@@ -79,18 +78,18 @@ func Default() Config {
 			fmt.Sprintf("mkdir -p %s %s", "/target"+paths.ConfigDir, "/target"+paths.DotfilesDir),
 			fmt.Sprintf("cp /cdrom/nocloud/provision %s", "/target"+paths.ProvisionBin),
 			fmt.Sprintf("cp /cdrom/nocloud/fav.sh %s 2>/dev/null || true", "/target"+paths.FavBin),
-			fmt.Sprintf("cp /cdrom/nocloud/setup-fcitx5-chinese.sh %s", "/target"+paths.Fcitx5Script),
 			fmt.Sprintf("cp -a /cdrom/nocloud/config/. %s/ 2>/dev/null || true", "/target"+paths.ConfigDir),
 			fmt.Sprintf("cp -a /cdrom/nocloud/dotfiles/. %s/ 2>/dev/null || true", "/target"+paths.DotfilesDir),
-			fmt.Sprintf("chmod +x %s %s %s 2>/dev/null || true",
+			fmt.Sprintf("chmod +x %s %s 2>/dev/null || true",
 				"/target"+paths.ProvisionBin,
-				"/target"+paths.FavBin, "/target"+paths.Fcitx5Script),
+				"/target"+paths.FavBin),
 			// First-boot provisioning service.
 			fmt.Sprintf("cp /cdrom/nocloud/first-boot.service %s", "/target"+paths.FirstBootUnit),
 			"curtin in-target --target=/target -- systemctl enable first-boot.service",
 		},
 	}
 }
+
 // GoldenVersion is bumped manually whenever Golden()'s base config changes
 // (packages, user, mirror, ...). The golden image cache key includes it, so
 // bumping forces a clean rebuild instead of silently reusing a stale image.
@@ -122,4 +121,3 @@ func Golden() Config {
 		Reboot:     false, // poweroff = clean VM exit signal
 	}
 }
-

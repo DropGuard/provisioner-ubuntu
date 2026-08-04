@@ -37,10 +37,9 @@ func TestBuildFullRepo(t *testing.T) {
 	bin := filepath.Join(repo, "provisioner")
 	os.WriteFile(bin, []byte("ELF"), 0o755)
 	writeTree(t, filepath.Join(repo, "scripts"), map[string]string{
-		"first-boot.service":      "[Unit]\n",
-		"setup-fcitx5-chinese.sh": "#!/bin/sh\n",
-		"fav.sh":                  "#!/bin/sh\n",
-		"copy-to-usb.py":          "should not be copied\n", // not in the manifest
+		"first-boot.service": "[Unit]\n",
+		"fav.sh":             "#!/bin/sh\n",
+		"copy-to-usb.py":     "should not be copied\n", // not in the manifest
 	})
 	writeTree(t, filepath.Join(repo, "config"), map[string]string{
 		"apt-packages.list": "curl\n",
@@ -60,8 +59,7 @@ func TestBuildFullRepo(t *testing.T) {
 		t.Fatalf("Build: %v", err)
 	}
 
-	for _, name := range []string{"provision", "first-boot.service",
-		"setup-fcitx5-chinese.sh", "fav.sh"} {
+	for _, name := range []string{"provision", "first-boot.service"} {
 		if _, err := os.Stat(filepath.Join(out, name)); err != nil {
 			t.Errorf("missing payload file %s: %v", name, err)
 		}

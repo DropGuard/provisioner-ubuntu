@@ -26,7 +26,6 @@ var scriptFiles = []struct {
 	required bool
 }{
 	{"first-boot.service", "first-boot.service", true},
-	{"setup-fcitx5-chinese.sh", "setup-fcitx5-chinese.sh", true},
 	// fav.sh is copied with `|| true` tolerance in the late-commands, so a
 	// missing script is non-fatal and the build keeps going.
 	{"fav.sh", "fav.sh", false},
