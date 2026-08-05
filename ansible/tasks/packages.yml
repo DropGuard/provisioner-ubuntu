@@ -11,11 +11,8 @@
       - ripgrep
       - eza
       - unzip
-      - zip
-      - jq
       - htop
       - kitty
-      - mpv
       - qimgv
     state: present
     update_cache: yes

@@ -53,10 +53,9 @@
     mode: '0644'
 
 
-- name: 设置默认看图和视频软件 (qimgv & mpv)
+- name: 设置默认看图和视频软件 (qimgv)
   ansible.builtin.shell: |
     xdg-mime default qimgv.desktop image/jpeg image/png image/gif image/webp image/bmp image/tiff
-    xdg-mime default mpv.desktop video/mp4 video/webm video/x-matroska video/quicktime video/x-msvideo video/3gpp
   ignore_errors: yes
 
 - name: 创建 Konsole 自定义配置目录
