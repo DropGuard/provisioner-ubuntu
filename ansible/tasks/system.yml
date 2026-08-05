@@ -1,0 +1,34 @@
+---
+# 基础系统与安全配置
+
+- name: 确保系统安装了 UFW 防火墙
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+
+- name: 配置默认的 UFW 防火墙规则 (默认拒绝外网访问)
+  community.general.ufw:
+    state: enabled
+    default: deny
+    direction: incoming
+
+- name: 允许外网通过 SSH 访问，但开启防爆破限流
+  community.general.ufw:
+    rule: limit
+    port: '22'
+    proto: tcp
+
+- name: 确保日常用户加入 Docker 组 (免 sudo 执行)
+  ansible.builtin.user:
+    name: "{{ ansible_user_id }}" # 自动获取当前装机用户名
+    groups: docker
+    append: yes
+
+- name: 安装 NVIDIA GPU 专有驱动 (自动检测)
+  ansible.builtin.shell: |
+    if lspci | grep -i nvidia > /dev/null; then
+      ubuntu-drivers autoinstall
+    fi
+  become: yes
+  changed_when: false
+

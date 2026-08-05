@@ -43,9 +43,10 @@ func testProvisionCmd() *cobra.Command {
 			if err := payload.Build(payload.Options{
 				Out:      payloadDir,
 				Binary:   binary,
-				Scripts:  filepath.Join(repo, "scripts"),
-				Config:   filepath.Join(repo, "config"),
-				Dotfiles: filepath.Join(repo, "dotfiles"),
+					Scripts:  filepath.Join(repo, "scripts"),
+					Config:   filepath.Join(repo, "config"),
+					Dotfiles: filepath.Join(repo, "dotfiles"),
+					Ansible:  filepath.Join(repo, "ansible"),
 			}); err != nil {
 				return err
 			}

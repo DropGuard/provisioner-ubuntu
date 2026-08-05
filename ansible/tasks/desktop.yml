@@ -1,0 +1,90 @@
+---
+# 桌面环境与输入法配置 (KDE & Fcitx5)
+
+- name: 安装 Fcitx5 输入法及相关依赖
+  ansible.builtin.apt:
+    name:
+      - fcitx5
+      - fcitx5-config-qt
+      - fcitx5-chinese-addons
+      - fcitx5-rime
+    state: present
+
+- name: 创建 Fcitx5 雾凇拼音词库目录
+  ansible.builtin.file:
+    path: "~/.local/share/fcitx5/rime"
+    state: directory
+    mode: '0755'
+
+- name: 克隆 Rime-Ice 极品词库 (深度为1，提速)
+  ansible.builtin.git:
+    repo: 'https://github.com/iDvel/rime-ice.git'
+    dest: "~/.local/share/fcitx5/rime"
+    depth: 1
+
+- name: 写入 Fcitx5 环境变量 (Environment.d)
+  ansible.builtin.copy:
+    dest: "~/.config/environment.d/fcitx5.conf"
+    content: |
+      XMODIFIERS=@im=fcitx5
+      SDL_IM_MODULE=fcitx5
+      GLFW_IM_MODULE=ibus
+    mode: '0644'
+
+- name: 直接写入 Fcitx5 Profile (将 Rime 设为默认)
+  ansible.builtin.copy:
+    dest: "~/.config/fcitx5/profile"
+    content: |
+      [Groups/0]
+      Name=Default
+      Default Layout=keyboard-us
+      DefaultIM=rime
+
+      [Groups/0/Items/0]
+      Name=keyboard-us
+      Layout=
+
+      [Groups/0/Items/1]
+      Name=rime
+      Layout=
+
+      [GroupOrder]
+      0=Default
+    mode: '0644'
+
+
+- name: 设置默认看图和视频软件 (qimgv & vlc)
+  ansible.builtin.shell: |
+    xdg-mime default qimgv.desktop image/jpeg image/png image/gif image/webp image/bmp image/tiff
+    xdg-mime default vlc.desktop video/mp4 video/webm video/x-matroska video/quicktime video/x-msvideo video/3gpp
+  ignore_errors: yes
+
+- name: 创建 Konsole 自定义配置目录
+  ansible.builtin.file:
+    path: "~/.local/share/konsole"
+    state: directory
+    mode: '0755'
+
+- name: 注入带有 Nerd Font 的 Konsole Profile
+  ansible.builtin.copy:
+    dest: "~/.local/share/konsole/Dropguard.profile"
+    content: |
+      [Appearance]
+      ColorScheme=Breeze
+      Font=JetBrainsMono NF,14,-1,5,50,0,0,0,0,0
+      
+      [General]
+      Name=Dropguard
+      Parent=FALLBACK/
+    mode: '0644'
+
+- name: 设为 KDE 全局默认终端配置
+  ansible.builtin.copy:
+    dest: "~/.config/konsolerc"
+    content: |
+      [Desktop Entry]
+      DefaultProfile=Dropguard.profile
+      
+      [General]
+      ConfigVersion=1
+    mode: '0644'

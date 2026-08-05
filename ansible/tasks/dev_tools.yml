@@ -1,0 +1,39 @@
+---
+# 极客开发套件 (Mise, Homebrew, 等)
+
+- name: 安装 Homebrew (如果未安装)
+  ansible.builtin.shell: |
+    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  args:
+    creates: /home/linuxbrew/.linuxbrew/bin/brew
+  become: yes # 官方脚本建议带 sudo
+
+- name: 安装 Mise 运行时管理器
+  ansible.builtin.shell: "curl https://mise.run | sh"
+  args:
+    creates: "~/.local/bin/mise"
+
+- name: 创建 Mise 配置目录
+  ansible.builtin.file:
+    path: "~/.config/mise"
+    state: directory
+    mode: '0755'
+
+- name: 复制 Mise 配置文件 (如果有的话)
+  ansible.builtin.copy:
+    src: "../../config/mise.toml" # 指向仓库根目录的 config
+    dest: "~/.config/mise/config.toml"
+  ignore_errors: yes
+
+- name: 激活 Mise 全局工具 (安装 Node, Python 等)
+  ansible.builtin.shell: "~/.local/bin/mise install"
+  args:
+    chdir: "~/.config/mise"
+  ignore_errors: yes
+
+- name: 安装全局 NPM 依赖 (Claude Code 等)
+  community.general.npm:
+    name: "@anthropic-ai/claude-code"
+    global: yes
+    executable: "~/.local/share/mise/installs/node/latest/bin/npm" # 假设使用 mise 安装的 node
+  ignore_errors: yes

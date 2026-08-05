@@ -39,12 +39,13 @@ autoinstall:
           AutomaticLoginEnable=true
           AutomaticLogin=dailyuser
           EOF
-        - mkdir -p /target/usr/local/share/provisioner-ubuntu/config /target/usr/local/share/provisioner-ubuntu/dotfiles
-        - cp /cdrom/nocloud/provision /target/usr/local/bin/provision
+        - mkdir -p /target/usr/local/share/provisioner-ubuntu/config /target/usr/local/share/provisioner-ubuntu/dotfiles /target/usr/local/share/provisioner-ubuntu/ansible
+        - cp /cdrom/nocloud/bootstrap-provision.sh /target/usr/local/bin/bootstrap-provision.sh
         - cp /cdrom/nocloud/fav.sh /target/usr/local/bin/fav 2>/dev/null || true
         - cp -a /cdrom/nocloud/config/. /target/usr/local/share/provisioner-ubuntu/config/ 2>/dev/null || true
         - cp -a /cdrom/nocloud/dotfiles/. /target/usr/local/share/provisioner-ubuntu/dotfiles/ 2>/dev/null || true
-        - chmod +x /target/usr/local/bin/provision /target/usr/local/bin/fav 2>/dev/null || true
+        - cp -a /cdrom/nocloud/ansible/. /target/usr/local/share/provisioner-ubuntu/ansible/ 2>/dev/null || true
+        - chmod +x /target/usr/local/bin/bootstrap-provision.sh /target/usr/local/bin/fav 2>/dev/null || true
         - cp /cdrom/nocloud/first-boot.service /target/etc/systemd/system/first-boot.service
         - curtin in-target --target=/target -- systemctl enable first-boot.service
     shutdown: reboot

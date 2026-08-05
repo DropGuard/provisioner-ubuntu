@@ -73,15 +73,15 @@ func Default() Config {
 			`curtin in-target --target=/target -- bash -c 'printf "tzdata tzdata/Areas select Asia\ntzdata tzdata/Zones/Asia select Shanghai\n" | debconf-set-selections'`,
 			// GDM auto-login (sudo still needs the password).
 			"cat > /target/etc/gdm3/custom.conf << 'EOF'\n[daemon]\nAutomaticLoginEnable=true\nAutomaticLogin=dailyuser\nEOF",
-			// Copy payload into the installed system. `provision` is the Go
-			// provisioner binary; first-boot.service runs it as /usr/local/bin/provision.
-			fmt.Sprintf("mkdir -p %s %s", "/target"+paths.ConfigDir, "/target"+paths.DotfilesDir),
-			fmt.Sprintf("cp /cdrom/nocloud/provision %s", "/target"+paths.ProvisionBin),
+			// Copy payload into the installed system. bootstrap.sh runs the Ansible playbook.
+			fmt.Sprintf("mkdir -p %s %s %s", "/target"+paths.ConfigDir, "/target"+paths.DotfilesDir, "/target"+paths.AnsibleDir),
+			fmt.Sprintf("cp /cdrom/nocloud/bootstrap-provision.sh %s", "/target"+paths.BootstrapBin),
 			fmt.Sprintf("cp /cdrom/nocloud/fav.sh %s 2>/dev/null || true", "/target"+paths.FavBin),
 			fmt.Sprintf("cp -a /cdrom/nocloud/config/. %s/ 2>/dev/null || true", "/target"+paths.ConfigDir),
 			fmt.Sprintf("cp -a /cdrom/nocloud/dotfiles/. %s/ 2>/dev/null || true", "/target"+paths.DotfilesDir),
+			fmt.Sprintf("cp -a /cdrom/nocloud/ansible/. %s/ 2>/dev/null || true", "/target"+paths.AnsibleDir),
 			fmt.Sprintf("chmod +x %s %s 2>/dev/null || true",
-				"/target"+paths.ProvisionBin,
+				"/target"+paths.BootstrapBin,
 				"/target"+paths.FavBin),
 			// First-boot provisioning service.
 			fmt.Sprintf("cp /cdrom/nocloud/first-boot.service %s", "/target"+paths.FirstBootUnit),

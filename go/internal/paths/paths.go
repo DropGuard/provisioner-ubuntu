@@ -5,9 +5,9 @@
 package paths
 
 const (
-	// ProvisionBin is where the Go provisioner lands in the installed system;
-	// first-boot.service runs it.
-	ProvisionBin = "/usr/local/bin/provision"
+	// BootstrapBin is the bash entrypoint that installs and triggers Ansible.
+	BootstrapBin = "/usr/local/bin/bootstrap-provision.sh"
+
 
 	// FavBin is a helper script copied alongside.
 	FavBin = "/usr/local/bin/fav"
@@ -17,6 +17,7 @@ const (
 	ShareDir    = "/usr/local/share/provisioner-ubuntu"
 	ConfigDir   = ShareDir + "/config"
 	DotfilesDir = ShareDir + "/dotfiles"
+	AnsibleDir  = ShareDir + "/ansible"
 
 	// FirstBootUnit is the oneshot service that triggers provisioning.
 	FirstBootUnit = "/etc/systemd/system/first-boot.service"

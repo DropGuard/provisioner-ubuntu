@@ -11,9 +11,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
-
-	"provisioner-ubuntu/internal/config"
 )
 
 // scriptFiles maps a repo scripts/ filename to the payload filename expected
@@ -26,6 +23,8 @@ var scriptFiles = []struct {
 	required bool
 }{
 	{"first-boot.service", "first-boot.service", true},
+	{"bootstrap.sh", "bootstrap-provision.sh", true},
+
 	// fav.sh is copied with `|| true` tolerance in the late-commands, so a
 	// missing script is non-fatal and the build keeps going.
 	{"fav.sh", "fav.sh", false},
@@ -38,6 +37,7 @@ type Options struct {
 	Scripts  string // repo scripts/ dir
 	Config   string // repo config/ dir
 	Dotfiles string // repo dotfiles/ dir
+	Ansible  string // repo ansible/ dir
 }
 
 // Build assembles the payload tree into Out. All inputs are optional except
@@ -55,11 +55,8 @@ func Build(o Options) error {
 		if err := copyMode(o.Binary, filepath.Join(o.Out, "provision"), 0o755); err != nil {
 			return fmt.Errorf("provision binary: %w", err)
 		}
-	} else {
-		// The late-commands copy nocloud/provision unconditionally; a payload
-		// without it produces an installed system that never provisions.
-		return fmt.Errorf("Binary required: the autoinstall late-commands copy nocloud/provision and first-boot.service runs it")
 	}
+
 	if o.Scripts != "" {
 		for _, sf := range scriptFiles {
 			src := filepath.Join(o.Scripts, sf.src)
@@ -75,12 +72,10 @@ func Build(o Options) error {
 		}
 	}
 	if o.Config != "" {
-		if errs := config.Validate(o.Config); len(errs) > 0 {
-			msgs := make([]string, len(errs))
-			for i, e := range errs {
-				msgs[i] = e.Error()
+		if o.Ansible != "" {
+			if err := copyTree(o.Ansible, filepath.Join(o.Out, "ansible")); err != nil {
+				return fmt.Errorf("ansible: %w", err)
 			}
-			return fmt.Errorf("config validation failed:\n\t%s", strings.Join(msgs, "\n\t"))
 		}
 		if err := copyTree(o.Config, filepath.Join(o.Out, "config")); err != nil {
 			return fmt.Errorf("config: %w", err)

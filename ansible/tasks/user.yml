@@ -1,0 +1,57 @@
+---
+# 用户级配置 (Git, Dotfiles)
+
+- name: 配置 Git 全局默认分支和 rebase 策略
+  community.general.git_config:
+    name: "{{ item.name }}"
+    scope: global
+    value: "{{ item.value }}"
+  loop:
+    - { name: 'init.defaultBranch', value: 'main' }
+    - { name: 'pull.rebase', value: 'false' }
+
+- name: 配置 Git 身份 (如果环境变量存在)
+  community.general.git_config:
+    name: "{{ item.name }}"
+    scope: global
+    value: "{{ lookup('env', item.env) }}"
+  loop:
+    - { name: 'user.name', env: 'GIT_USER_NAME' }
+    - { name: 'user.email', env: 'GIT_USER_EMAIL' }
+  when: lookup('env', item.env) != ''
+
+- name: 向 .bashrc 注入开发环境路径 (Brew, Mise)
+  ansible.builtin.blockinfile:
+    path: "~/.bashrc"
+    create: yes
+    block: |
+      # --- provisioner environment ---
+      if [ -f /home/linuxbrew/.linuxbrew/bin/brew ]; then
+        eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+      fi
+      if [ -f ~/.local/bin/mise ]; then
+        eval "$(mise activate bash)"
+      fi
+      eval "$(zoxide init bash)" 2>/dev/null || true
+      
+      # >>> Proxy toggles <<<
+      alias proxy='export http_proxy="http://127.0.0.1:7897" https_proxy="http://127.0.0.1:7897" all_proxy="socks5://127.0.0.1:7897"; echo "Terminal proxy ON"'
+      alias unproxy='unset http_proxy https_proxy all_proxy; echo "Terminal proxy OFF"'
+      
+      # >>> yazi: cwd on exit <<<
+      function y() {
+      	local tmp="$(mktemp -t "yazi-cwd.XXXXXX")"
+      	yazi "$@" --cwd-file="$tmp"
+      	if cwd="$(command cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
+      		builtin cd -- "$cwd"
+      	fi
+      	rm -f -- "$tmp"
+      }
+      # -------------------------------
+
+- name: 同步个人 Dotfiles 到主目录
+  ansible.posix.synchronize:
+    src: "../../dotfiles/"
+    dest: "~/"
+    recursive: yes
+    perms: yes

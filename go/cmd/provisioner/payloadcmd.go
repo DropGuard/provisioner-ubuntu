@@ -24,7 +24,8 @@ func buildPayloadCmd() *cobra.Command {
 				Binary:   binary,
 				Scripts:  filepath.Join(repo, "scripts"),
 				Config:   filepath.Join(repo, "config"),
-				Dotfiles: filepath.Join(repo, "dotfiles"),
+					Dotfiles: filepath.Join(repo, "dotfiles"),
+					Ansible:  filepath.Join(repo, "ansible"),
 			}); err != nil {
 				return err
 			}
