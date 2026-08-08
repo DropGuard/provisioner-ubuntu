@@ -34,6 +34,14 @@
   become: yes
   ignore_errors: yes
 
+
+- name: 等待 Mihomo 代理端口 (7897) 绑定就绪 (Ansible Native)
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: 7897
+    state: started
+    timeout: 30
+  become: yes
 - name: 设置 sudo 的代理环境变量保持 (sudoers env_keep)
   ansible.builtin.copy:
     dest: /etc/sudoers.d/proxy
