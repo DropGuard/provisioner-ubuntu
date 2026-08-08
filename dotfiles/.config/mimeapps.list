@@ -1,0 +1,12 @@
+[Default Applications]
+video/x-msvideo=org.kde.haruna.desktop
+video/mp4=org.kde.haruna.desktop
+video/mpeg=org.kde.haruna.desktop
+video/ogg=org.kde.haruna.desktop
+video/webm=org.kde.haruna.desktop
+video/x-matroska=org.kde.haruna.desktop
+video/quicktime=org.kde.haruna.desktop
+video/x-flv=org.kde.haruna.desktop
+video/x-avi=org.kde.haruna.desktop
+video/x-ms-wmv=org.kde.haruna.desktop
+video/x-msvideo=org.kde.haruna.desktop
