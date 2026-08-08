@@ -10,6 +10,7 @@
     - { name: 'init.defaultBranch', value: 'main' }
     - { name: 'pull.rebase', value: 'false' }
 
+
 - name: 配置 Git 身份 (如果环境变量存在)
   community.general.git_config:
     name: "{{ item.name }}"
@@ -19,6 +20,7 @@
     - { name: 'user.name', env: 'GIT_USER_NAME' }
     - { name: 'user.email', env: 'GIT_USER_EMAIL' }
   when: lookup('env', item.env) != ''
+
 
 - name: 向 .bashrc 注入开发环境路径 (Brew, Mise)
   ansible.builtin.blockinfile:
@@ -48,6 +50,7 @@
       	rm -f -- "$tmp"
       }
       # -------------------------------
+
 
 - name: 同步个人 Dotfiles 到主目录
   ansible.posix.synchronize:

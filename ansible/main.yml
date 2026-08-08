@@ -2,7 +2,10 @@
 - name: Ubuntu 极客开发机自动化装机剧本 (Provisioning Playbook)
   hosts: localhost
   connection: local
-  become: yes  # 默认提权，对于特定用户级别的操作在 task 内部用 become: no 或者 become_user 指定
+  become: yes
+  vars:
+    target_user: "dropguard"  # 强制锁定日常用户名
+
 
   tasks:
     - name: 执行网络与源配置
@@ -14,13 +17,16 @@
     - name: 执行软件包安装
       ansible.builtin.import_tasks: tasks/packages.yml
 
-    - name: 执行桌面与输入法配置 (降权使用当前用户)
+    - name: 执行桌面与输入法配置
       ansible.builtin.import_tasks: tasks/desktop.yml
-      become: no
+      become_user: "{{ target_user }}"
+
 
     - name: 执行极客开发套件配置
       ansible.builtin.import_tasks: tasks/dev_tools.yml
+      become_user: "{{ target_user }}"
 
-    - name: 执行用户级配置同步 (降权)
+    - name: 执行用户级配置同步
       ansible.builtin.import_tasks: tasks/user.yml
-      become: no
+      become_user: "{{ target_user }}"
+

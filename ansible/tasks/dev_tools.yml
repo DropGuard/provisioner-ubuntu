@@ -6,7 +6,6 @@
     NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
   args:
     creates: /home/linuxbrew/.linuxbrew/bin/brew
-  become: yes # 官方脚本建议带 sudo
 
 - name: 安装 Mise 运行时管理器
   ansible.builtin.shell: "curl https://mise.run | sh"

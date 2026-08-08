@@ -1,15 +1,6 @@
 ---
 # 桌面环境与输入法配置 (KDE & Fcitx5)
 
-- name: 安装 Fcitx5 输入法及相关依赖
-  ansible.builtin.apt:
-    name:
-      - fcitx5
-      - fcitx5-config-qt
-      - fcitx5-chinese-addons
-      - fcitx5-rime
-    state: present
-
 - name: 创建 Fcitx5 雾凇拼音词库目录
   ansible.builtin.file:
     path: "~/.local/share/fcitx5/rime"

@@ -1,6 +1,18 @@
 ---
 # 软件包管理 (APT, Snap, Flatpak)
 
+- name: 添加 Kubuntu Backports 源以获取最新 KWin/Plasma 修复
+  ansible.builtin.apt_repository:
+    repo: ppa:kubuntu-ppa/backports
+    state: present
+  become: yes
+
+- name: 强制系统全量升级 (涵盖 PPA 及灰度更新)
+  ansible.builtin.apt:
+    upgrade: full
+    update_cache: yes
+  become: yes
+
 - name: 安装核心开发与实用工具
   ansible.builtin.apt:
     name:
@@ -14,8 +26,18 @@
       - htop
       - kitty
       - qimgv
+      - rsync
     state: present
     update_cache: yes
+
+- name: 安装桌面环境核心组件 (Fcitx5 输入法及相关依赖)
+  ansible.builtin.apt:
+    name:
+      - fcitx5
+      - fcitx5-config-qt
+      - fcitx5-chinese-addons
+      - fcitx5-rime
+    state: present
 
 - name: 安装全局 Flatpak 软件
   community.general.flatpak:
