@@ -30,6 +30,14 @@
     state: present
     update_cache: yes
 
+
+- name: 安装极简 KDE 桌面环境 (针对 Server 镜像)
+  ansible.builtin.apt:
+    name:
+      - kde-plasma-desktop
+      - sddm
+      - xwayland
+    state: present
 - name: 安装桌面环境核心组件 (Fcitx5 输入法及相关依赖)
   ansible.builtin.apt:
     name:
