@@ -147,7 +147,7 @@ func targetAptConf(mirror, proxy string) *aptConf {
 	geoip := false
 	c.GeoIP = &geoip
 	if proxy != "" {
-		conf := fmt.Sprintf("Acquire::http::Proxy %q;\nAcquire::https::Proxy %q;\n", proxy, proxy)
+		conf := fmt.Sprintf("Acquire::http::Proxy %q;\n", proxy)
 		c.Conf = &conf
 	}
 	return c
