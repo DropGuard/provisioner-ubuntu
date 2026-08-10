@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Enpass
+Exec=sh -c "sleep 5 && /opt/enpass/Enpass -minimize"
+Icon=enpass.png
+Comment=The best password manager
+X-GNOME-Autostart-Delay=12
+X-GNOME-Autostart-enabled=false
+Hidden=true
