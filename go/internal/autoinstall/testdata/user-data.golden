@@ -28,11 +28,11 @@ autoinstall:
         install-server: true
         allow-pw: true
     late-commands:
+        - curtin in-target --target=/target -- bash -c 'printf "tzdata tzdata/Areas select Asia\ntzdata tzdata/Zones/Asia select Shanghai\n" | debconf-set-selections'
         - echo 'LANG=en_US.UTF-8' > /target/etc/locale.conf
         - sed -i 's/^# en_US.UTF-8/en_US.UTF-8/' /target/etc/locale.gen
         - curtin in-target --target=/target -- locale-gen
         - ln -sf /usr/share/zoneinfo/Asia/Shanghai /target/etc/localtime
-        - curtin in-target --target=/target -- bash -c 'printf "tzdata tzdata/Areas select Asia\ntzdata tzdata/Zones/Asia select Shanghai\n" | debconf-set-selections'
         - |-
           cat > /target/etc/gdm3/custom.conf << 'EOF'
           [daemon]
@@ -57,7 +57,7 @@ autoinstall:
         security:
             - arches:
                 - default
-              uri: http://mirrors.ustc.edu.cn/ubuntu-security/
+              uri: http://mirrors.ustc.edu.cn/ubuntu/
         geoip: false
 apt:
     primary:
@@ -67,4 +67,4 @@ apt:
     security:
         - arches:
             - default
-          uri: http://mirrors.ustc.edu.cn/ubuntu-security/
+          uri: http://mirrors.ustc.edu.cn/ubuntu/

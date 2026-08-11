@@ -102,6 +102,28 @@ var testCases = []testCase{
 		contain: "openssh-server",
 		timeout: 10 * time.Second,
 	},
+	{
+		name:    "hostname is ubuntu",
+		check:   "hostname",
+		contain: "ubuntu",
+		timeout: 10 * time.Second,
+	},
+	{
+		name:    "locale is en_US.UTF-8",
+		check:   "cat /etc/default/locale || cat /etc/locale.conf",
+		contain: "en_US.UTF-8",
+		timeout: 10 * time.Second,
+	},
+	{
+		name:    "timezone is Asia_Shanghai",
+		check:   "cat /etc/timezone 2>/dev/null || ls -l /etc/localtime",
+		contain: "Shanghai",
+		timeout: 10 * time.Second,
+	},
+	// NOTE: provision-phase outcomes (NVIDIA, kubuntu-ppa, dotfiles) are NOT
+	// asserted here — Phase B boots the minimal unprovisioned golden. They are
+	// machine-specific (nvidia tasks are gated on `lspci | grep nvidia` in
+	// ansible/tasks/system.yml) and belong in Phase C / real-hardware runs.
 }
 
 // runTestCase creates an overlay of the golden image, boots it, runs a

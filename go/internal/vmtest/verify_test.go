@@ -15,7 +15,7 @@ import (
 // is present (produced by the VM integration test). It exercises the full
 // pure-Go verifier -> AssertInstall path against a real installed system.
 func TestVerifierInstalledDisk(t *testing.T) {
-	const disk = "/home/dropguard/vmtest-repack/target.qcow2"
+	const disk = "/home/dailyuser/vmtest-repack/target.qcow2"
 	if _, err := os.Stat(disk); err != nil {
 		t.Skipf("installed disk %s not present (run the VM test first)", disk)
 	}

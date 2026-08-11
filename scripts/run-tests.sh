@@ -5,7 +5,8 @@ set -eou pipefail
 ISO_PATH="${ISO_PATH:-/mnt/ssd1t/ubuntu-26.04-live-server-amd64.iso}"
 CACHE_DIR="${XDG_CACHE_HOME:-/mnt/ssd1t/cache}"
 WORK_DIR="${WORK_DIR:-/mnt/ssd1t/vmtest-work}"
-APT_PROXY="${APT_PROXY:-http://127.0.0.1:3142}"
+HOST_PROXY_TEST="http://127.0.0.1:3142"
+VM_APT_PROXY="http://10.0.2.2:3142"
 
 echo "=================================================="
 echo "🚀 自动化端到端测试流水线 (E2E Test Pipeline)"
@@ -24,9 +25,9 @@ fi
 echo -e "\n[1/2] 正在烘焙黄金镜像 (Phase A) ..."
 # 根据代理是否响应来决定是否添加代理参数
 PROXY_FLAG=""
-if curl -s -m 1 "$APT_PROXY" >/dev/null; then
-    echo "  > 探测到本地代理 $APT_PROXY，启用包缓存"
-    PROXY_FLAG="--apt-proxy $APT_PROXY"
+if curl -s -m 1 "$HOST_PROXY_TEST" >/dev/null; then
+    echo "  > 探测到本地代理 $HOST_PROXY_TEST，为虚拟机启用包缓存 ($VM_APT_PROXY)"
+    PROXY_FLAG="--apt-proxy $VM_APT_PROXY"
 else
     echo "  > 未探测到本地缓存代理，将直连下载"
 fi
@@ -41,5 +42,17 @@ echo -e "\n[2/2] 正在执行端到端断言测试 (Phase B) ..."
 XDG_CACHE_HOME="$CACHE_DIR" go run ./cmd/provisioner test-e2e \
     --iso "$ISO_PATH" \
     --serial "50026B727200FDDC"
+
+echo -e "\n[3/3] 正在执行全量 Provision 并验证 (Phase C) ..."
+GOLDEN_BASE=$(ls -t "$CACHE_DIR"/vmtest-golden/*.qcow2 | head -n 1)
+if [ -z "$GOLDEN_BASE" ]; then
+    echo "❌ 错误: 找不到生成的黄金镜像"
+    exit 1
+fi
+
+XDG_CACHE_HOME="$CACHE_DIR" go run ./cmd/provisioner test-provision \
+    --base "$GOLDEN_BASE" \
+    --repo ".." \
+    --check "docker --version && eza --version && rg --version && echo Phase C Pass!"
 
 echo -e "\n✅ 所有测试流程执行完毕！"

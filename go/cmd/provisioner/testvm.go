@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -21,8 +22,8 @@ func testvmCmd() *cobra.Command {
 		Short: "Validate the autoinstall config end-to-end in a KVM VM",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if work == "" {
-				home, _ := os.UserHomeDir()
-				work = filepath.Join(home, ".cache", "vmtest-work")
+				cacheDir, _ := os.UserCacheDir()
+				work = filepath.Join(cacheDir, "vmtest-work")
 			}
 
 			// Golden mode: minimal install, cached by ISO hash.
@@ -52,7 +53,8 @@ func testvmCmd() *cobra.Command {
 					Config:     cfg,
 					// No payload — golden image is a clean install.
 					ProgressFunc: func(p vmtest.ProgressReport) {
-						fmt.Printf("  progress: %.1f GiB written (vm %s)\n", p.WrittenGiB, p.Status)
+						tail := lastLine(filepath.Join(work, "console.log"))
+						fmt.Printf("  progress: %.1f GiB written (vm %s) | %s\n", p.WrittenGiB, p.Status, tail)
 					},
 					OnStall: func(p vmtest.ProgressReport) {
 						fmt.Printf("  ⚠ SILENT HANG: target not written for a while (%.1f GiB, vm %s)\n", p.WrittenGiB, p.Status)
@@ -89,7 +91,8 @@ func testvmCmd() *cobra.Command {
 				Config:     cfg,
 				PayloadDir: payload,
 				ProgressFunc: func(p vmtest.ProgressReport) {
-					fmt.Printf("  progress: %.1f GiB written (vm %s)\n", p.WrittenGiB, p.Status)
+					tail := lastLine(filepath.Join(work, "console.log"))
+					fmt.Printf("  progress: %.1f GiB written (vm %s) | %s\n", p.WrittenGiB, p.Status, tail)
 				},
 				OnStall: func(p vmtest.ProgressReport) {
 					fmt.Printf("  ⚠ SILENT HANG: target not written for a while (%.1f GiB, vm %s)\n", p.WrittenGiB, p.Status)
@@ -149,4 +152,22 @@ func humanSize(n int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), "KMGT"[exp])
+}
+
+func lastLine(path string) string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(string(b), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line != "" {
+			if len(line) > 80 {
+				return line[:77] + "..."
+			}
+			return line
+		}
+	}
+	return ""
 }

@@ -193,7 +193,7 @@ func launchQEMU(o qemuOptions) (waitCh <-chan error, pid int, kill func(), err e
 	}
 	args := []string{
 		"-machine", "q35,accel=kvm", "-cpu", "host",
-		"-m", "4096", "-smp", "2",
+		"-m", "6144", "-smp", "2",
 		"-drive", "if=pflash,format=raw,readonly=on,file=" + ovmfCode,
 		"-drive", "if=pflash,format=raw,file=" + ovmfVars,
 		"-boot", "order=d,menu=off",
@@ -275,7 +275,7 @@ func BootReady(o BootOptions) (*BootSession, error) {
 	os.Remove(console)
 	args := []string{
 		"-machine", "q35,accel=kvm", "-cpu", "host",
-		"-m", "4096", "-smp", "2",
+		"-m", "6144", "-smp", "2",
 		"-drive", "if=pflash,format=raw,readonly=on,file=" + ovmfCode,
 		"-drive", "if=pflash,format=raw,file=" + ovmfVars,
 		"-drive", "file=" + o.Disk + ",format=qcow2,if=none,id=target",

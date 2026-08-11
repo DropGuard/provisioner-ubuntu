@@ -57,21 +57,22 @@ func Default() Config {
 			"openssh-server", "curl", "git", "build-essential",
 			"qemu-guest-agent", // enables QMP guest-exec on the installed system
 		},
-		// The install's primary mirror is set via cloud-init's `apt:` module
 		// (rendered into user-data). archive.ubuntu.com is ~90KB/s via this
 		// host's proxy vs ~1.6MB/s for the China mirror.
 		AptMirror:  "mirrors.ustc.edu.cn",
 		SSHAllowPW: true,
 		Reboot:     true,
 		LateCommand: []string{
-			// Ubuntu 26.04 desktop installer BUG: Locale/TimeZone controllers are
-			// no-ops for the target (verified in KVM). Apply explicitly.
+			// NOTE: We have standardized on the live-server ISO over the desktop ISO.
+			// The desktop installer is bloated and "doesn't respect the user" (e.g. silently
+			// drops Locale/TimeZone configurations). We explicitly apply them here as a
+			// fallback to ensure a pure and highly predictable baseline environment.
+			// `curtin in-target ... debconf-set-selections` applies the tzdata immediately.
+			`curtin in-target --target=/target -- bash -c 'printf "tzdata tzdata/Areas select Asia\ntzdata tzdata/Zones/Asia select Shanghai\n" | debconf-set-selections'`,
 			"echo 'LANG=en_US.UTF-8' > /target/etc/locale.conf",
 			"sed -i 's/^# en_US.UTF-8/en_US.UTF-8/' /target/etc/locale.gen",
 			"curtin in-target --target=/target -- locale-gen",
 			"ln -sf /usr/share/zoneinfo/Asia/Shanghai /target/etc/localtime",
-			`curtin in-target --target=/target -- bash -c 'printf "tzdata tzdata/Areas select Asia\ntzdata tzdata/Zones/Asia select Shanghai\n" | debconf-set-selections'`,
-			// GDM auto-login (sudo still needs the password).
 			"cat > /target/etc/gdm3/custom.conf << 'EOF'\n[daemon]\nAutomaticLoginEnable=true\nAutomaticLogin=dailyuser\nEOF",
 			// Copy payload into the installed system. bootstrap.sh runs the Ansible playbook.
 			fmt.Sprintf("mkdir -p %s %s %s", "/target"+paths.ConfigDir, "/target"+paths.DotfilesDir, "/target"+paths.AnsibleDir),
@@ -93,7 +94,9 @@ func Default() Config {
 // GoldenVersion is bumped manually whenever Golden()'s base config changes
 // (packages, user, mirror, ...). The golden image cache key includes it, so
 // bumping forces a clean rebuild instead of silently reusing a stale image.
-const GoldenVersion = "v1"
+// v3: username reverted dailyuser←dropguard (open-source identity); the v2
+// cache was built under the dropguard name and is not SSH-reachable as dailyuser.
+const GoldenVersion = "v3"
 
 // Golden returns the minimal config for building the cached golden image
 // (Phase A of the e2e pipeline). The image is the smallest thing Phase B

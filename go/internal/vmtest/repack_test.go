@@ -6,7 +6,15 @@ import (
 	"testing"
 )
 
-const testISO = "/home/dropguard/Downloads/ubuntu-26.04-desktop-amd64.iso"
+// testISO is the local Ubuntu desktop ISO for the repack integration test.
+// Inject at test time via the UBUNTU_ISO env var (dependency injection); it
+// falls back to a neutral path and the test skips when the file is absent.
+var testISO = func() string {
+	if p := os.Getenv("UBUNTU_ISO"); p != "" {
+		return p
+	}
+	return "/tmp/ubuntu-26.04-desktop-amd64.iso"
+}()
 
 // TestParseXorrisoReport is ISO-free: it feeds parseXorrisoReport a realistic
 // `-report_el_torito as_mkisofs` transcript and checks every field, including

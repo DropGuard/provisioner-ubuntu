@@ -49,7 +49,7 @@ Copy the `SERIAL` of the disk you want to install to.
 
 # Write the USB
 sudo /tmp/p usb \
-  --iso ubuntu-26.04-desktop-amd64.iso \
+  --iso ubuntu-26.04-live-server-amd64.iso \
   --disk /dev/sdb \
   --serial YOUR_DISK_SERIAL \
   --payload /tmp/payload
@@ -81,10 +81,10 @@ No need to rebuild a USB to test provisioner or config changes:
 
 ```bash
 # Phase A: full install test (~40 min), produces a golden image
-/tmp/p test-vm --iso ubuntu-26.04-desktop-amd64.iso --payload /tmp/payload --golden
+/tmp/p test-vm --iso ubuntu-26.04-live-server-amd64.iso --payload /tmp/payload --golden
 
 # Phase B: quick assertions against the golden image (did autoinstall succeed?)
-/tmp/p test-e2e --iso ubuntu-26.04-desktop-amd64.iso
+/tmp/p test-e2e --iso ubuntu-26.04-live-server-amd64.iso
 
 # Phase C: run the provisioner against the golden image (test config/dotfile changes)
 /tmp/p test-provision --base /path/to/golden.qcow2 --binary /tmp/p --repo ..

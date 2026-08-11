@@ -127,7 +127,9 @@ func aptConfFor(mirror, proxy string) *aptConf {
 	return &aptConf{
 		Proxy:    proxy,
 		Primary:  []aptMirror{{Arches: []string{"default"}, URI: "http://" + mirror + "/ubuntu/"}},
-		Security: []aptMirror{{Arches: []string{"default"}, URI: "http://" + mirror + "/ubuntu-security/"}},
+		// USTC serves the -security suite under the SAME /ubuntu/ root as primary
+		// (/ubuntu-security/ 404s — proven via apt-cacher-ng log + curl, 2026-08).
+		Security: []aptMirror{{Arches: []string{"default"}, URI: "http://" + mirror + "/ubuntu/"}},
 	}
 }
 
@@ -142,7 +144,7 @@ func targetAptConf(mirror, proxy string) *aptConf {
 	}
 	c := &aptConf{
 		Primary:  []aptMirror{{Arches: []string{"default"}, URI: "http://" + mirror + "/ubuntu/"}},
-		Security: []aptMirror{{Arches: []string{"default"}, URI: "http://" + mirror + "/ubuntu-security/"}},
+		Security: []aptMirror{{Arches: []string{"default"}, URI: "http://" + mirror + "/ubuntu/"}},
 	}
 	geoip := false
 	c.GeoIP = &geoip
