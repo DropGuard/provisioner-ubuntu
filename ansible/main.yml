@@ -30,12 +30,12 @@
         mode: '0755'
 
   roles:
-    - { role: network }
-    - { role: system }
-    - { role: packages, environment: "{{ proxy_env }}" }
-    - { role: desktop, environment: "{{ proxy_env }}", become_user: "{{ target_user }}" }
-    - { role: dev_tools, environment: "{{ proxy_env }}", become_user: "{{ target_user }}" }
-    - { role: user, become_user: "{{ target_user }}" }
+    - { role: network, tags: ['network'] }
+    - { role: system, tags: ['system'] }
+    - { role: packages, environment: "{{ proxy_env }}", tags: ['packages', 'pkg'] }
+    - { role: desktop, environment: "{{ proxy_env }}", become_user: "{{ target_user }}", tags: ['desktop'] }
+    - { role: dev_tools, environment: "{{ proxy_env }}", become_user: "{{ target_user }}", tags: ['dev_tools', 'dev'] }
+    - { role: user, become_user: "{{ target_user }}", tags: ['user', 'dotfiles'] }
   post_tasks:
     - name: 解除 APT 服务自动启动拦截
       ansible.builtin.file:
