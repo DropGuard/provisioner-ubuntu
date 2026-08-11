@@ -50,6 +50,7 @@
       - fcitx5-config-qt
       - fcitx5-chinese-addons
       - fcitx5-rime
+      - nvidia-vaapi-driver
     state: present
 
 - name: 安装全局 Flatpak 软件

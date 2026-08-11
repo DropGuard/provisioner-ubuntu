@@ -88,3 +88,11 @@
       [General]
       ConfigVersion=1
     mode: '0644'
+
+- name: 配置 Firefox 环境变量以支持 NVIDIA 硬解 (Flatpak Override)
+  ansible.builtin.command: flatpak override --user --env={{ item }} org.mozilla.firefox
+  loop:
+    - MOZ_DISABLE_RDD_SANDBOX=1
+    - LIBVA_DRIVER_NAME=nvidia
+  # 此步骤可能在没有 X11/Wayland 运行环境的纯非交互时警告，但依然能写入 config
+  ignore_errors: yes
