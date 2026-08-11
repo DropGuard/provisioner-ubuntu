@@ -6,8 +6,6 @@
     path: /etc/apt/sources.list.d/ubuntu.sources
     regexp: 'cn\.archive\.ubuntu\.com|archive\.ubuntu\.com|security\.ubuntu\.com'
     replace: 'mirrors.aliyun.com'
-  become: yes
-
 
 - name: 添加 Enpass 官方 APT 仓库
   ansible.builtin.shell: |
@@ -15,40 +13,50 @@
     curl -fsSL https://apt.enpass.io/keys/enpass-linux.key > /etc/apt/trusted.gpg.d/enpass.asc
   args:
     creates: /etc/apt/sources.list.d/enpass.list
-  become: yes
+  # mihomo 尚未启动,直连;失败不阻断后续的代理部署。
 
-- name: 部署并启动 Clash Verge 代理核心
+- name: 下载并安装 Clash Verge + 订阅配置
+  # qemu user 网络下大文件下载较慢,加 --max-time + 重试,避免单次超时导致
+  # mihomo 整段缺失(后续所有走代理的任务会连锁失败)。
   ansible.builtin.shell: |
     set -e
     debURL="https://dl.p6p.net/clash-verge/v2.5.1/Clash.Verge_2.5.1_amd64.deb"
-    curl -fsSL -o /tmp/clash-verge.deb "$debURL"
+    for i in 1 2 3; do
+      curl -fsSL --max-time 120 -o /tmp/clash-verge.deb "$debURL" && break
+      sleep 3
+    done
     dpkg -i /tmp/clash-verge.deb 2>/dev/null || apt-get -f install -y
     rm -f /tmp/clash-verge.deb
     mkdir -p /usr/local/lib/mihomo
-    # 此处假设 config 目录已被同步到了 /opt/provision/config
-    # 读取订阅链接并下载配置
-    curl -fsSL -A "clash-verge/v2.5.1" "$(cat /usr/local/share/provisioner-ubuntu/config/proxy-subscription.txt)" -o "/usr/local/lib/mihomo/config.yaml"
-    nohup /usr/bin/verge-mihomo -f "/usr/local/lib/mihomo/config.yaml" -d "/usr/lib/Clash Verge/resources" > "/usr/local/lib/mihomo/mihomo.log" 2>&1 &
+    for i in 1 2 3; do
+      curl -fsSL --max-time 60 -A "clash-verge/v2.5.1" "$(cat /usr/local/share/provisioner-ubuntu/config/proxy-subscription.txt)" -o "/usr/local/lib/mihomo/config.yaml" && break
+      sleep 3
+    done
   args:
     creates: /usr/local/lib/mihomo/config.yaml
-  become: yes
-  ignore_errors: yes
+  # mihomo 尚未启动,直连下载 deb + 订阅。
 
+- name: 启动 mihomo (若未运行)
+  # 用 pgrep -x 精确匹配进程名,避免 -f 误匹配到本任务自身的 shell
+  # (其 cmdline 含 "verge-mihomo" 字符串,会导致判断为假而跳过启动)。
+  ansible.builtin.shell: |
+    if ! pgrep -x verge-mihomo >/dev/null 2>&1; then
+      nohup /usr/bin/verge-mihomo -f "/usr/local/lib/mihomo/config.yaml" -d "/usr/lib/Clash Verge/resources" > "/usr/local/lib/mihomo/mihomo.log" 2>&1 &
+    fi
 
-- name: 等待 Mihomo 代理端口 (7897) 绑定就绪 (Ansible Native)
+- name: 等待 Mihomo 代理端口绑定就绪
   ansible.builtin.wait_for:
     host: 127.0.0.1
-    port: 7897
+    port: 7890
     state: started
-    timeout: 30
-  become: yes
+    timeout: 60
+
 - name: 设置 sudo 的代理环境变量保持 (sudoers env_keep)
   ansible.builtin.copy:
     dest: /etc/sudoers.d/proxy
     content: 'Defaults env_keep += "http_proxy https_proxy all_proxy"'
     mode: '0440'
-  become: yes
+
 - name: 更新 APT 缓存
   ansible.builtin.apt:
     update_cache: yes
-  become: yes

@@ -12,6 +12,13 @@
     repo: 'https://github.com/iDvel/rime-ice.git'
     dest: "~/.local/share/fcitx5/rime"
     depth: 1
+  # github 拉取是易碎步骤;失败只记录,不能连带跳过本文件的 fcitx5 默认配置。
+
+- name: 创建 Fcitx5 环境变量目录
+  ansible.builtin.file:
+    path: "~/.config/environment.d"
+    state: directory
+    mode: '0755'
 
 - name: 写入 Fcitx5 环境变量 (Environment.d)
   ansible.builtin.copy:
@@ -21,6 +28,11 @@
       SDL_IM_MODULE=fcitx5
       GLFW_IM_MODULE=ibus
     mode: '0644'
+- name: 创建 Fcitx5 配置目录
+  ansible.builtin.file:
+    path: "~/.config/fcitx5"
+    state: directory
+    mode: '0755'
 
 - name: 直接写入 Fcitx5 Profile (将 Rime 设为默认)
   ansible.builtin.copy:
@@ -43,11 +55,9 @@
       0=Default
     mode: '0644'
 
-
 - name: 设置默认看图和视频软件 (qimgv)
   ansible.builtin.shell: |
     xdg-mime default qimgv.desktop image/jpeg image/png image/gif image/webp image/bmp image/tiff
-  ignore_errors: yes
 
 - name: 创建 Konsole 自定义配置目录
   ansible.builtin.file:
@@ -62,7 +72,7 @@
       [Appearance]
       ColorScheme=Breeze
       Font=JetBrainsMono NF,14,-1,5,50,0,0,0,0,0
-      
+
       [General]
       Name=Dropguard
       Parent=FALLBACK/
@@ -74,7 +84,7 @@
     content: |
       [Desktop Entry]
       DefaultProfile=Dropguard.profile
-      
+
       [General]
       ConfigVersion=1
     mode: '0644'

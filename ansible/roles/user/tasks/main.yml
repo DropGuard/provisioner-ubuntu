@@ -35,11 +35,11 @@
         eval "$(mise activate bash)"
       fi
       eval "$(zoxide init bash)" 2>/dev/null || true
-      
+
       # >>> Proxy toggles <<<
       alias proxy='export http_proxy="http://127.0.0.1:7897" https_proxy="http://127.0.0.1:7897" all_proxy="socks5://127.0.0.1:7897"; echo "Terminal proxy ON"'
       alias unproxy='unset http_proxy https_proxy all_proxy; echo "Terminal proxy OFF"'
-      
+
       # >>> yazi: cwd on exit <<<
       function y() {
       	local tmp="$(mktemp -t "yazi-cwd.XXXXXX")"
@@ -53,8 +53,7 @@
 
 
 - name: 同步个人 Dotfiles 到主目录
-  ansible.posix.synchronize:
+  ansible.builtin.copy:
     src: "../../dotfiles/"
     dest: "~/"
-    recursive: yes
-    perms: yes
+    mode: preserve

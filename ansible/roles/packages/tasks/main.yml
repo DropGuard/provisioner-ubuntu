@@ -1,17 +1,21 @@
 ---
 # 软件包管理 (APT, Snap, Flatpak)
 
-- name: 添加 Kubuntu Backports 源以获取最新 KWin/Plasma 修复
-  ansible.builtin.apt_repository:
-    repo: ppa:kubuntu-ppa/backports
-    state: present
-  become: yes
+- name: 绕过 dirmngr 获取 Kubuntu Backports GPG 密钥
+  ansible.builtin.get_url:
+    url: "http://keyserver.ubuntu.com/pks/lookup?op=get&search=0x7EB726D45F5037D1A642C72C17FB29293721A2CD"
+    dest: /etc/apt/keyrings/kubuntu-ppa.asc
+    mode: '0644'
 
+- name: 显式添加 Kubuntu Backports 源以获取最新 KWin/Plasma 修复 (Nvidia 刚需)
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/kubuntu-ppa.asc] http://ppa.launchpadcontent.net/kubuntu-ppa/backports/ubuntu {{ ansible_distribution_release }} main"
+    state: present
+    filename: kubuntu-ppa-backports
 - name: 强制系统全量升级 (涵盖 PPA 及灰度更新)
   ansible.builtin.apt:
     upgrade: full
     update_cache: yes
-  become: yes
 
 - name: 安装核心开发与实用工具
   ansible.builtin.apt:
@@ -30,7 +34,6 @@
     state: present
     update_cache: yes
 
-
 - name: 安装极简 KDE 桌面环境 (针对 Server 镜像)
   ansible.builtin.apt:
     name:
@@ -38,6 +41,7 @@
       - sddm
       - xwayland
     state: present
+
 - name: 安装桌面环境核心组件 (Fcitx5 输入法及相关依赖)
   ansible.builtin.apt:
     name:
@@ -55,11 +59,9 @@
   loop:
     # 这里可以直接读取原先配置里的列表，作为演示先写死几个
     - org.mozilla.firefox
-  ignore_errors: yes # 对应 Go 代码里的最佳努力 (best-effort)
 
 - name: 安装局域网定制工具 (CC-Switch 等，如果安装包存在)
   ansible.builtin.apt:
     deb: "{{ item }}"
   loop:
     - "/usr/local/share/provisioner-ubuntu/config/cc-switch.deb"
-  ignore_errors: yes

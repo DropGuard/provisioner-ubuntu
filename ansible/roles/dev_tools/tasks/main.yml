@@ -22,17 +22,14 @@
   ansible.builtin.copy:
     src: "../../config/mise.toml" # 指向仓库根目录的 config
     dest: "~/.config/mise/config.toml"
-  ignore_errors: yes
 
 - name: 激活 Mise 全局工具 (安装 Node, Python 等)
   ansible.builtin.shell: "~/.local/bin/mise install"
   args:
     chdir: "~/.config/mise"
-  ignore_errors: yes
 
-- name: 安装全局 NPM 依赖 (Claude Code 等)
-  community.general.npm:
-    name: "@anthropic-ai/claude-code"
-    global: yes
-    executable: "~/.local/share/mise/installs/node/latest/bin/npm" # 假设使用 mise 安装的 node
-  ignore_errors: yes
+- name: 安装 Claude Code (独立包，不依赖 Node)
+  ansible.builtin.shell: |
+    curl -fsSL https://claude.ai/install.sh | bash
+  args:
+    creates: "~/.claude/bin/claude"

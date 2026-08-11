@@ -4,29 +4,40 @@
   connection: local
   become: yes
   vars:
-    target_user: "dropguard"  # 强制锁定日常用户名
+    target_user: "dailyuser"
+    proxy_env:
+      http_proxy: "http://127.0.0.1:{{ mihomo_port | default('7890') }}"
+      https_proxy: "http://127.0.0.1:{{ mihomo_port | default('7890') }}"
+      DEBIAN_FRONTEND: noninteractive
+      NEEDRESTART_MODE: a
+      NEEDRESTART_FRONTEND: noninteractive
 
+  pre_tasks:
+    - name: 拦截 APT 自动启动服务 (防止无头虚拟机内核与 systemd 死锁)
+      ansible.builtin.copy:
+        dest: /usr/sbin/policy-rc.d
+        content: |
+          #!/bin/sh
+          exit 101
+        mode: '0755'
+    
+    - name: 预创建 Homebrew 目录以修复权限 (由 Root 执行)
+      ansible.builtin.file:
+        path: /home/linuxbrew/.linuxbrew
+        state: directory
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
+        mode: '0755'
 
-  tasks:
-    - name: 执行网络与源配置
-      ansible.builtin.import_tasks: tasks/network.yml
-
-    - name: 执行基础系统与安全配置
-      ansible.builtin.import_tasks: tasks/system.yml
-
-    - name: 执行软件包安装
-      ansible.builtin.import_tasks: tasks/packages.yml
-
-    - name: 执行桌面与输入法配置
-      ansible.builtin.import_tasks: tasks/desktop.yml
-      become_user: "{{ target_user }}"
-
-
-    - name: 执行极客开发套件配置
-      ansible.builtin.import_tasks: tasks/dev_tools.yml
-      become_user: "{{ target_user }}"
-
-    - name: 执行用户级配置同步
-      ansible.builtin.import_tasks: tasks/user.yml
-      become_user: "{{ target_user }}"
-
+  roles:
+    - { role: network }
+    - { role: system }
+    - { role: packages, environment: "{{ proxy_env }}" }
+    - { role: desktop, environment: "{{ proxy_env }}", become_user: "{{ target_user }}" }
+    - { role: dev_tools, environment: "{{ proxy_env }}", become_user: "{{ target_user }}" }
+    - { role: user, become_user: "{{ target_user }}" }
+  post_tasks:
+    - name: 解除 APT 服务自动启动拦截
+      ansible.builtin.file:
+        path: /usr/sbin/policy-rc.d
+        state: absent
