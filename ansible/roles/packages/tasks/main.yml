@@ -31,6 +31,7 @@
       - kitty
       - qimgv
       - rsync
+      - stow
     state: present
     update_cache: yes
 

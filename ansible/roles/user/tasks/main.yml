@@ -52,8 +52,8 @@
       # -------------------------------
 
 
-- name: 同步个人 Dotfiles 到主目录
-  ansible.builtin.copy:
-    src: "../../dotfiles/"
-    dest: "~/"
-    mode: preserve
+- name: 使用 GNU Stow 同步个人 Dotfiles (建立软链接，防止配置漂移)
+  ansible.builtin.shell: stow --restow --target="{{ ansible_env.HOME }}" dotfiles
+  args:
+    chdir: "{{ playbook_dir | dirname }}"
+  # 提示: 如果之前是用 copy 生成了实体文件，stow 会报错冲突。需要手动删除一次旧实体文件。
