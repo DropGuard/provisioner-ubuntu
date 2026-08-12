@@ -125,3 +125,7 @@
       user_pref("media.ffmpeg.vaapi.enabled", true);
       user_pref("gfx.webrender.all", true);
     mode: '0644'
+
+- name: 设置 PeaZip 为默认解压软件
+  ansible.builtin.shell: |
+    xdg-mime default io.github.peazip.PeaZip.desktop application/zip application/x-7z-compressed application/x-rar application/x-tar application/gzip application/x-bzip2 application/x-xz

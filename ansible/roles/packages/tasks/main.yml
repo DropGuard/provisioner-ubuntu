@@ -61,6 +61,7 @@
   loop:
     # 这里可以直接读取原先配置里的列表，作为演示先写死几个
     - org.mozilla.firefox
+    - io.github.peazip.PeaZip
 
 - name: 安装局域网定制工具 (CC-Switch 等，如果安装包存在)
   ansible.builtin.apt:
