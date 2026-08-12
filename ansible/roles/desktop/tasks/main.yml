@@ -96,3 +96,32 @@
     - LIBVA_DRIVER_NAME=nvidia
   # 此步骤可能在没有 X11/Wayland 运行环境的纯非交互时警告，但依然能写入 config
   ignore_errors: yes
+
+- name: 确保 Firefox Flatpak 配置目录存在
+  ansible.builtin.file:
+    path: "~/.var/app/org.mozilla.firefox/config/mozilla/firefox/default"
+    state: directory
+    mode: '0755'
+
+- name: 物理预埋 Firefox profiles.ini (不能使用软链接以避开沙盒限制)
+  ansible.builtin.copy:
+    dest: "~/.var/app/org.mozilla.firefox/config/mozilla/firefox/profiles.ini"
+    content: |
+      [Profile0]
+      Name=default
+      IsRelative=1
+      Path=default
+      Default=1
+
+      [General]
+      StartWithLastProfile=1
+      Version=2
+    mode: '0644'
+
+- name: 物理预埋 Firefox user.js 以开启硬解
+  ansible.builtin.copy:
+    dest: "~/.var/app/org.mozilla.firefox/config/mozilla/firefox/default/user.js"
+    content: |
+      user_pref("media.ffmpeg.vaapi.enabled", true);
+      user_pref("gfx.webrender.all", true);
+    mode: '0644'
