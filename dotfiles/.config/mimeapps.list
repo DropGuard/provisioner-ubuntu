@@ -1,12 +1,27 @@
+[Added Associations]
+image/jpeg=qimgv.desktop;
+
 [Default Applications]
-video/x-msvideo=org.kde.haruna.desktop
+image/jpeg=qimgv.desktop
 video/mp4=org.kde.haruna.desktop
 video/mpeg=org.kde.haruna.desktop
 video/ogg=org.kde.haruna.desktop
-video/webm=org.kde.haruna.desktop
-video/x-matroska=org.kde.haruna.desktop
 video/quicktime=org.kde.haruna.desktop
-video/x-flv=org.kde.haruna.desktop
+video/webm=org.kde.haruna.desktop
 video/x-avi=org.kde.haruna.desktop
+video/x-flv=org.kde.haruna.desktop
+video/x-matroska=org.kde.haruna.desktop
 video/x-ms-wmv=org.kde.haruna.desktop
 video/x-msvideo=org.kde.haruna.desktop
+image/png=qimgv.desktop
+image/gif=qimgv.desktop
+image/webp=qimgv.desktop
+image/bmp=qimgv.desktop
+image/tiff=qimgv.desktop
+application/zip=io.github.peazip.PeaZip.desktop
+application/x-7z-compressed=io.github.peazip.PeaZip.desktop
+application/x-rar=io.github.peazip.PeaZip.desktop
+application/x-tar=io.github.peazip.PeaZip.desktop
+application/gzip=io.github.peazip.PeaZip.desktop
+application/x-bzip2=io.github.peazip.PeaZip.desktop
+application/x-xz=io.github.peazip.PeaZip.desktop
