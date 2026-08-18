@@ -1,6 +1,9 @@
 [Applications][qoder-cn]
 Seen=true
 
+[Applications][zcode]
+Seen=true
+
 [DoNotDisturb]
 WhenFullscreen=false
 WhenPlayingMedia=false

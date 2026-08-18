@@ -1,6 +1,8 @@
 [Added Associations]
 image/jpeg=qimgv.desktop;
 
+x-scheme-handler/clash=clash-verge.desktop;
+x-scheme-handler/clash-verge=clash-verge.desktop;
 [Default Applications]
 image/jpeg=qimgv.desktop
 video/mp4=org.kde.haruna.desktop
@@ -25,3 +27,6 @@ application/x-tar=io.github.peazip.PeaZip.desktop
 application/gzip=io.github.peazip.PeaZip.desktop
 application/x-bzip2=io.github.peazip.PeaZip.desktop
 application/x-xz=io.github.peazip.PeaZip.desktop
+x-scheme-handler/zcode=zcode.desktop
+x-scheme-handler/clash=clash-verge.desktop;
+x-scheme-handler/clash-verge=clash-verge.desktop;
