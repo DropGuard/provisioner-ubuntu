@@ -47,4 +47,4 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
 
       - name: ShellCheck
-        run: shellcheck -x scripts/setup-fcitx5-chinese.sh scripts/fav.sh scripts/test-env-loading.sh
+        run: shellcheck scripts/*.sh

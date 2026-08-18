@@ -24,10 +24,10 @@ fi
 
 echo -e "\n[1/2] 正在烘焙黄金镜像 (Phase A) ..."
 # 根据代理是否响应来决定是否添加代理参数
-PROXY_FLAG=""
+PROXY_ARGS=()
 if curl -s -m 1 "$HOST_PROXY_TEST" >/dev/null; then
     echo "  > 探测到本地代理 $HOST_PROXY_TEST，为虚拟机启用包缓存 ($VM_APT_PROXY)"
-    PROXY_FLAG="--apt-proxy $VM_APT_PROXY"
+    PROXY_ARGS=("--apt-proxy" "$VM_APT_PROXY")
 else
     echo "  > 未探测到本地缓存代理，将直连下载"
 fi
@@ -36,7 +36,7 @@ XDG_CACHE_HOME="$CACHE_DIR" go run ./cmd/provisioner test-vm \
     --golden \
     --iso "$ISO_PATH" \
     --work "$WORK_DIR" \
-    $PROXY_FLAG
+    "${PROXY_ARGS[@]}"
 
 echo -e "\n[2/2] 正在执行端到端断言测试 (Phase B) ..."
 XDG_CACHE_HOME="$CACHE_DIR" go run ./cmd/provisioner test-e2e \
@@ -44,7 +44,8 @@ XDG_CACHE_HOME="$CACHE_DIR" go run ./cmd/provisioner test-e2e \
     --serial "50026B727200FDDC"
 
 echo -e "\n[3/3] 正在执行全量 Provision 并验证 (Phase C) ..."
-GOLDEN_BASE=$(ls -t "$CACHE_DIR"/vmtest-golden/*.qcow2 | head -n 1)
+# shellcheck disable=SC2012
+GOLDEN_BASE=$(ls -t "$CACHE_DIR"/vmtest-golden/*.qcow2 2>/dev/null | head -n 1)
 if [ -z "$GOLDEN_BASE" ]; then
     echo "❌ 错误: 找不到生成的黄金镜像"
     exit 1
