@@ -1,0 +1,8 @@
+# Target SSD serial on development machine (from `lsblk -o NAME,SERIAL`)
+serial: "50026B727200FDDC"
+
+# Base Ubuntu live-server ISO filename or path
+iso: "ubuntu-26.04-live-server-amd64.iso"
+
+# Default target USB block device
+disk: "/dev/sdb"

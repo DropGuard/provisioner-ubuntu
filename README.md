@@ -36,29 +36,16 @@ go build -o /tmp/p ./cmd/provisioner
 * **Language runtimes**: Edit `config/mise.toml` (Node, Python, Go, Rust, etc.)
 * **Dotfiles**: Drop your config files into `dotfiles/` (mirrors `$HOME`)
 
-### 3. Find your target disk serial
+### 3. Build the USB drive (One-step)
 
-On the target machine (or from a live USB):
-
-```bash
-lsblk -o NAME,SERIAL,MODEL,SIZE
-```
-
-Copy the `SERIAL` of the disk you want to install to.
-
-### 4. Build the USB drive
+Set your target SSD serial in `config/provisioner.yaml` (or pass via flag), then burn the USB drive:
 
 ```bash
-# Assemble the seed payload (scripts + config + dotfiles + ansible)
-/tmp/p build-payload --out /tmp/payload --repo ..
-
-# Write the USB
-sudo /tmp/p usb \
-  --iso ubuntu-26.04-live-server-amd64.iso \
-  --disk /dev/sdb \
-  --serial YOUR_DISK_SERIAL \
-  --payload /tmp/payload
+# Auto-builds payload and writes USB in a single command:
+sudo go run ./cmd/provisioner usb --disk /dev/sdb
 ```
+
+*(You can also override parameters on the fly: `--serial`, `--iso`, `--config`)*
 
 **⚠️ `--disk` is wiped entirely. Double-check you're pointing at the USB drive.**
 
