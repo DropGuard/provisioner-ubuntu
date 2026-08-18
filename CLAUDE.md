@@ -26,13 +26,12 @@ The Go module lives in `go/`:
 | `cd go && go test ./...` | Run all unit tests |
 | `cd go && go test ./internal/autoinstall -run TestUserDataGolden -update` | Regenerate the golden user-data snapshot after an intentional change |
 | `cd go && go vet ./...` | Vet |
-| `cd go && go build -o /tmp/p ./cmd/provisioner` | Build the CLI |
-| `/tmp/p config-gen` | Render user-data + grub.cfg from the typed config |
-| `/tmp/p build-payload --out /tmp/payload --repo ..` | Assemble the nocloud seed payload (scripts + config + dotfiles + ansible) |
-| `/tmp/p test-vm --iso … --payload …` | Validate autoinstall end-to-end in a KVM VM (no root) |
-| `/tmp/p test-e2e --iso …` | Quick golden-image assertions via SSH |
-| `/tmp/p test-provision --base golden.qcow2 --repo ..` | Run Ansible provisioning on golden snapshot and assert desktop session |
-| `sudo /tmp/p usb --iso … --disk /dev/sdX` | Build a bootable autoinstall USB |
+| `cd go && go run ./cmd/provisioner config-gen` | Render user-data + grub.cfg from the typed config |
+| `cd go && go run ./cmd/provisioner build-payload --out /tmp/payload --repo ..` | Assemble seed payload directory explicitly |
+| `cd go && go run ./cmd/provisioner test-vm --iso … --golden` | Validate autoinstall end-to-end in a KVM VM (no root) |
+| `cd go && go run ./cmd/provisioner test-e2e --iso …` | Quick golden-image assertions via SSH |
+| `cd go && go run ./cmd/provisioner test-provision --base golden.qcow2 --repo ..` | Run Ansible provisioning on golden snapshot and assert desktop session |
+| `cd go && sudo go run ./cmd/provisioner usb --disk /dev/sdX` | Build a bootable autoinstall USB (auto-builds payload & reads config) |
 
 The autoinstall user-data is generated with **`gopkg.in/yaml.v3`** — never hand-templated YAML (a template produced invalid YAML for multi-line late-commands, leaving subiquity stuck in state WAITING).
 
@@ -51,7 +50,7 @@ ansible/
   main.yml                main local playbook entrypoint + post_tasks cleanup
   roles/                  network / system / packages / desktop / dev_tools / user
 
-config/                   runtime configs (mise.toml, proxy-subscription.txt, haruna baseline)
+config/                   runtime configs (mise.toml, proxy-subscription.txt, haruna baseline, provisioner.yaml)
 dotfiles/                 stateless user dotfiles mirrored to $HOME via GNU Stow (--adopt)
 scripts/                  bootstrap.sh, first-boot.service
 ```

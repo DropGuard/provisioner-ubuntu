@@ -12,9 +12,9 @@ Zero-interaction desktop setup from bare metal, powered by **cloud-init autoinst
 
 | Directory / File | Responsibility |
 |---|---|
-| `go/` | CLI (`/tmp/p`), USB generator, cloud-init YAML generator & KVM test harness |
+| `go/` | Go CLI, USB generator, cloud-init YAML generator & KVM test harness |
 | `ansible/roles/` | Modular provisioning roles (`network`, `system`, `packages`, `desktop`, `dev_tools`, `user`) |
-| `config/` | Tool & runtime configurations (`mise.toml`, `haruna/`, `proxy-subscription.txt`) |
+| `config/` | Tool & runtime configurations (`mise.toml`, `haruna/`, `proxy-subscription.txt`, `provisioner.yaml`) |
 | `dotfiles/` | User dotfiles mirrored to `$HOME` via GNU Stow (`--adopt`) |
 | `scripts/` | Bootstrap entrypoints (`bootstrap.sh`, `first-boot.service`) |
 
@@ -22,34 +22,27 @@ Zero-interaction desktop setup from bare metal, powered by **cloud-init autoinst
 
 ## Usage
 
-### 1. Clone & build
+### 1. Customize (optional)
 
-```bash
-git clone <this-repo>
-cd provisioner-ubuntu/go
-go build -o /tmp/p ./cmd/provisioner
-```
-
-### 2. Customize (optional)
-
+* **Target SSD & USB configuration**: Set target disk parameters in `config/provisioner.yaml`
 * **System & desktop packages**: Edit `ansible/roles/packages/tasks/main.yml` and `dev_tools/tasks/main.yml`
 * **Language runtimes**: Edit `config/mise.toml` (Node, Python, Go, Rust, etc.)
 * **Dotfiles**: Drop your config files into `dotfiles/` (mirrors `$HOME`)
 
-### 3. Build the USB drive (One-step)
+### 2. Build the USB drive (One-step)
 
-Set your target SSD serial in `config/provisioner.yaml` (or pass via flag), then burn the USB drive:
+From the `go/` directory, run the USB generator (auto-builds payload and writes disk):
 
 ```bash
-# Auto-builds payload and writes USB in a single command:
+cd go
 sudo go run ./cmd/provisioner usb --disk /dev/sdb
 ```
 
-*(You can also override parameters on the fly: `--serial`, `--iso`, `--config`)*
+*(Parameters like `--serial`, `--iso`, or `--config` can also be passed via flags)*
 
 **⚠️ `--disk` is wiped entirely. Double-check you're pointing at the USB drive.**
 
-### 5. Install
+### 3. Install
 
 1. Insert the USB into the target machine
 2. Boot in UEFI mode
@@ -59,17 +52,17 @@ sudo go run ./cmd/provisioner usb --disk /dev/sdb
 
 ## Validating changes (KVM)
 
-No need to rebuild a USB to test Ansible or config changes:
+No need to rebuild a USB to test Ansible or config changes (run inside `go/` directory):
 
 ```bash
 # Phase A: full install test (~40 min), produces a golden image
-/tmp/p test-vm --iso ubuntu-26.04-live-server-amd64.iso --payload /tmp/payload --golden
+go run ./cmd/provisioner test-vm --iso ubuntu-26.04-live-server-amd64.iso --golden
 
 # Phase B: quick assertions against the golden image (did autoinstall succeed?)
-/tmp/p test-e2e --iso ubuntu-26.04-live-server-amd64.iso
+go run ./cmd/provisioner test-e2e --iso ubuntu-26.04-live-server-amd64.iso
 
 # Phase C: run Ansible provisioning against the golden image + assert KDE/SDDM session
-/tmp/p test-provision --base /path/to/golden.qcow2 --repo ..
+go run ./cmd/provisioner test-provision --base /path/to/golden.qcow2 --repo ..
 ```
 
 ---
