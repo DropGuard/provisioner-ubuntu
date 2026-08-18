@@ -37,7 +37,7 @@
       eval "$(zoxide init bash)" 2>/dev/null || true
 
       # >>> Proxy toggles <<<
-      alias proxy='export http_proxy="http://127.0.0.1:7897" https_proxy="http://127.0.0.1:7897" all_proxy="socks5://127.0.0.1:7897"; echo "Terminal proxy ON"'
+      alias proxy='export http_proxy="http://127.0.0.1:7890" https_proxy="http://127.0.0.1:7890" all_proxy="socks5://127.0.0.1:7890"; echo "Terminal proxy ON"'
       alias unproxy='unset http_proxy https_proxy all_proxy; echo "Terminal proxy OFF"'
 
       # >>> yazi: cwd on exit <<<
@@ -52,8 +52,8 @@
       # -------------------------------
 
 
-- name: 使用 GNU Stow 同步个人 Dotfiles (建立软链接，防止配置漂移)
-  ansible.builtin.shell: stow --restow --target="{{ ansible_env.HOME }}" dotfiles
+- name: 使用 GNU Stow 同步个人 Dotfiles (建立软链接，自动纳管现有文件)
+  ansible.builtin.shell: stow --restow --adopt --target="{{ ansible_env.HOME }}" dotfiles
   args:
     chdir: "{{ playbook_dir | dirname }}"
   # 提示: 如果之前是用 copy 生成了实体文件，stow 会报错冲突。需要手动删除一次旧实体文件。

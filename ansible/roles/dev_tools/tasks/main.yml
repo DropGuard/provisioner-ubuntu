@@ -20,11 +20,13 @@
 
 - name: 复制 Mise 配置文件 (如果有的话)
   ansible.builtin.copy:
-    src: "../../config/mise.toml" # 指向仓库根目录的 config
+    src: "{{ playbook_dir | dirname }}/config/mise.toml"
     dest: "~/.config/mise/config.toml"
 
 - name: 激活 Mise 全局工具 (安装 Node, Python 等)
   ansible.builtin.shell: "~/.local/bin/mise install"
+  environment:
+    MISE_YES: "1"
   args:
     chdir: "~/.config/mise"
 
@@ -33,3 +35,21 @@
     curl -fsSL https://claude.ai/install.sh | bash
   args:
     creates: "~/.claude/bin/claude"
+
+- name: 创建个人字体目录
+  ansible.builtin.file:
+    path: "~/.local/share/fonts"
+    state: directory
+    mode: '0755'
+
+- name: 下载并解压 JetBrainsMono Nerd Font (终端图标美化刚需)
+  ansible.builtin.unarchive:
+    src: "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.tar.xz"
+    dest: "~/.local/share/fonts"
+    remote_src: yes
+    creates: "~/.local/share/fonts/JetBrainsMonoNerdFont-Regular.ttf"
+  register: font_install
+
+- name: 刷新用户字体缓存
+  ansible.builtin.command: fc-cache -f
+  when: font_install.changed

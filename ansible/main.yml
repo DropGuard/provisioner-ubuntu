@@ -41,3 +41,13 @@
       ansible.builtin.file:
         path: /usr/sbin/policy-rc.d
         state: absent
+
+
+    - name: 装机结束，关闭后台的 Mihomo 代理进程
+      ansible.builtin.shell: pkill -x verge-mihomo || true
+      changed_when: false
+
+    - name: 交付完毕，禁用 first-boot 自启服务
+      ansible.builtin.systemd:
+        name: first-boot.service
+        enabled: no
