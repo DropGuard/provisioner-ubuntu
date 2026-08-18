@@ -4,7 +4,19 @@
 
 > Plug in a USB drive, walk away, come back to a fully configured Ubuntu dev machine.
 
-Zero-interaction desktop setup from bare metal, powered by **cloud-init autoinstall** + a Go **post-install provisioner**.
+Zero-interaction desktop setup from bare metal, powered by **cloud-init autoinstall** (orchestrated & tested via Go) + **Ansible modular playbooks** on first boot.
+
+---
+
+## Architecture & Layout
+
+| Directory / File | Responsibility |
+|---|---|
+| `go/` | CLI (`/tmp/p`), USB generator, cloud-init YAML generator & KVM test harness |
+| `ansible/roles/` | Modular provisioning roles (`network`, `system`, `packages`, `desktop`, `dev_tools`, `user`) |
+| `config/` | Tool & runtime configurations (`mise.toml`, `haruna/`, `proxy-subscription.txt`) |
+| `dotfiles/` | User dotfiles mirrored to `$HOME` via GNU Stow (`--adopt`) |
+| `scripts/` | Bootstrap entrypoints (`bootstrap.sh`, `first-boot.service`) |
 
 ---
 
@@ -20,16 +32,9 @@ go build -o /tmp/p ./cmd/provisioner
 
 ### 2. Customize (optional)
 
-Edit the package lists under `config/` and config files under `dotfiles/`. These are read at runtime — no recompilation required:
-
-| File | Controls |
-|------|----------|
-| `config/apt-packages.list` | System packages via apt |
-| `config/brew-packages.list` | CLI tools via Homebrew |
-| `config/snap-packages.list` | Snap packages |
-| `config/flatpak-packages.list` | Flatpak applications |
-| `config/mise.toml` | Language runtimes (Node, Python, Go, etc.) |
-| `dotfiles/` | User config files (mirrors `$HOME`) |
+* **System & desktop packages**: Edit `ansible/roles/packages/tasks/main.yml` and `dev_tools/tasks/main.yml`
+* **Language runtimes**: Edit `config/mise.toml` (Node, Python, Go, Rust, etc.)
+* **Dotfiles**: Drop your config files into `dotfiles/` (mirrors `$HOME`)
 
 ### 3. Find your target disk serial
 
@@ -44,8 +49,8 @@ Copy the `SERIAL` of the disk you want to install to.
 ### 4. Build the USB drive
 
 ```bash
-# Assemble the seed payload (binary + scripts + config + dotfiles)
-/tmp/p build-payload --out /tmp/payload --repo .. --binary /tmp/p
+# Assemble the seed payload (scripts + config + dotfiles + ansible)
+/tmp/p build-payload --out /tmp/payload --repo ..
 
 # Write the USB
 sudo /tmp/p usb \
@@ -61,23 +66,13 @@ sudo /tmp/p usb \
 
 1. Insert the USB into the target machine
 2. Boot in UEFI mode
-3. **Walk away.** The installer runs without interaction: partition → install → create user → copy payload → reboot
-
-### 6. First boot
-
-After reboot, `first-boot.service` runs the provisioner automatically. Check progress:
-
-```bash
-journalctl -u first-boot.service
-```
-
-Core packages fail fast — retry with `systemctl restart first-boot.service`. Everything else is best-effort; failures don't block the rest.
+3. **Walk away.** The installer runs without interaction: partition → install base OS → seed payload → reboot → run Ansible playbooks → auto-destruct first-boot service → enter KDE Plasma Wayland desktop.
 
 ---
 
 ## Validating changes (KVM)
 
-No need to rebuild a USB to test provisioner or config changes:
+No need to rebuild a USB to test Ansible or config changes:
 
 ```bash
 # Phase A: full install test (~40 min), produces a golden image
@@ -86,20 +81,22 @@ No need to rebuild a USB to test provisioner or config changes:
 # Phase B: quick assertions against the golden image (did autoinstall succeed?)
 /tmp/p test-e2e --iso ubuntu-26.04-live-server-amd64.iso
 
-# Phase C: run the provisioner against the golden image (test config/dotfile changes)
-/tmp/p test-provision --base /path/to/golden.qcow2 --binary /tmp/p --repo ..
+# Phase C: run Ansible provisioning against the golden image + assert KDE/SDDM session
+/tmp/p test-provision --base /path/to/golden.qcow2 --repo ..
 ```
-
-For day-to-day package or dotfile changes, just run Phase C — it takes minutes, not a full reinstall.
 
 ---
 
-## Re-running
+## Re-running & Granular Maintenance
 
-Provisioning is idempotent — already-installed packages are skipped:
+Provisioning is idempotent. You can re-run the full pipeline or specific tags:
 
 ```bash
-sudo /usr/local/bin/provision
+# Re-run full provisioning
+sudo /usr/local/bin/bootstrap-provision.sh
+
+# Or run specific roles via Ansible tags
+sudo ansible-playbook -c local /usr/local/share/provisioner-ubuntu/ansible/main.yml --tags dev,dotfiles
 ```
 
 ---
@@ -107,7 +104,7 @@ sudo /usr/local/bin/provision
 ## Security notes
 
 - **dailyuser** password is `1` — change it after setup: `passwd`
-- **Auto-login** is enabled via GDM — disable in Settings → Users if you prefer a login prompt
+- **Auto-login** is enabled via **SDDM** into KDE Plasma Wayland
 - **sudo** still requires the password
 - **No disk encryption** — single-user desktop setup
 
@@ -117,6 +114,4 @@ sudo /usr/local/bin/provision
 
 **Installer didn't auto-start.** Make sure you're booting in UEFI mode, not Legacy/CSM.
 
-**Provision didn't run on first boot.** Check `journalctl -u first-boot.service`, or run manually: `sudo /usr/local/bin/provision`.
-
-**Some packages failed.** Re-run `sudo /usr/local/bin/provision` — it skips installed packages and retries failures.
+**Provisioning failed on first boot.** Check logs with `journalctl -u first-boot.service`, or re-run manually: `sudo /usr/local/bin/bootstrap-provision.sh`.
