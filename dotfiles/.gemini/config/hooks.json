@@ -1,0 +1,19 @@
+{
+  "simple-notify": {
+    "PreToolUse": [
+      {
+        "matcher": "ask_question",
+        "hooks": [
+          {
+            "command": "antigravity-notify.sh 'Antigravity' 'Antigravity CLI awaits input...'; echo '{\"decision\":\"allow\"}'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "command": "antigravity-notify.sh 'Antigravity' 'Task completed'; echo '{}'"
+      }
+    ]
+  }
+}
