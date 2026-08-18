@@ -73,7 +73,8 @@ func Default() Config {
 			"sed -i 's/^# en_US.UTF-8/en_US.UTF-8/' /target/etc/locale.gen",
 			"curtin in-target --target=/target -- locale-gen",
 			"ln -sf /usr/share/zoneinfo/Asia/Shanghai /target/etc/localtime",
-			"cat > /target/etc/gdm3/custom.conf << 'EOF'\n[daemon]\nAutomaticLoginEnable=true\nAutomaticLogin=dailyuser\nEOF",
+			"mkdir -p /target/etc/sddm.conf.d",
+			"cat > /target/etc/sddm.conf.d/autologin.conf << 'EOF'\n[Autologin]\nUser=dailyuser\nSession=plasmawayland\nEOF",
 			// Copy payload into the installed system. bootstrap.sh runs the Ansible playbook.
 			fmt.Sprintf("mkdir -p %s %s %s", "/target"+paths.ConfigDir, "/target"+paths.DotfilesDir, "/target"+paths.AnsibleDir),
 			fmt.Sprintf("cp /cdrom/nocloud/bootstrap-provision.sh %s", "/target"+paths.BootstrapBin),

@@ -140,20 +140,20 @@ func TestUserDataIsValidYAML(t *testing.T) {
 	if !ok || len(lc) == 0 {
 		t.Fatalf("late-commands missing or empty in:\n%s", out)
 	}
-	// The multi-line gdm autologin command must survive the YAML round-trip
+	// The multi-line sddm autologin command must survive the YAML round-trip
 	// (exact bytes may differ by a trailing newline from block-scalar folding).
-	foundGDM := false
+	foundSDDM := false
 	for _, item := range lc {
 		s, ok := item.(string)
 		if !ok {
 			continue
 		}
-		if strings.Contains(s, "gdm3/custom.conf") && strings.Contains(s, "AutomaticLogin=dailyuser") {
-			foundGDM = true
+		if strings.Contains(s, "sddm.conf.d/autologin.conf") && strings.Contains(s, "User=dailyuser") {
+			foundSDDM = true
 		}
 	}
-	if !foundGDM {
-		t.Fatalf("gdm autologin late-command lost in YAML round-trip:\n%s", out)
+	if !foundSDDM {
+		t.Fatalf("sddm autologin late-command lost in YAML round-trip:\n%s", out)
 	}
 }
 

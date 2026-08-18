@@ -33,11 +33,12 @@ autoinstall:
         - sed -i 's/^# en_US.UTF-8/en_US.UTF-8/' /target/etc/locale.gen
         - curtin in-target --target=/target -- locale-gen
         - ln -sf /usr/share/zoneinfo/Asia/Shanghai /target/etc/localtime
+        - mkdir -p /target/etc/sddm.conf.d
         - |-
-          cat > /target/etc/gdm3/custom.conf << 'EOF'
-          [daemon]
-          AutomaticLoginEnable=true
-          AutomaticLogin=dailyuser
+          cat > /target/etc/sddm.conf.d/autologin.conf << 'EOF'
+          [Autologin]
+          User=dailyuser
+          Session=plasmawayland
           EOF
         - mkdir -p /target/usr/local/share/provisioner-ubuntu/config /target/usr/local/share/provisioner-ubuntu/dotfiles /target/usr/local/share/provisioner-ubuntu/ansible
         - cp /cdrom/nocloud/bootstrap-provision.sh /target/usr/local/bin/bootstrap-provision.sh

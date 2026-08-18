@@ -1,0 +1,8 @@
+---
+# System Handlers
+
+- name: update grub
+  ansible.builtin.shell: update-grub
+
+- name: update initramfs
+  ansible.builtin.shell: update-initramfs -u

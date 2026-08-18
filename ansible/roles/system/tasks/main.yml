@@ -29,24 +29,68 @@
     groups: docker
     append: yes
 
-- name: 安装 NVIDIA GPU 专有驱动 (自动检测)
-  ansible.builtin.shell: |
-    if lspci | grep -i nvidia > /dev/null; then
-      ubuntu-drivers autoinstall
-    fi
+- name: 检查是否存在 NVIDIA GPU
+  ansible.builtin.shell: lspci | grep -i nvidia
+  register: nvidia_check
+  failed_when: false
   changed_when: false
 
-- name: 配置 NVIDIA Wayland 最佳实践 (内核参数与显存保护)
-  ansible.builtin.shell: |
-    if lspci | grep -i nvidia > /dev/null; then
-      # 1. 注入内核参数 (启用 modeset 和 fbdev)
-      if ! grep -q "nvidia_drm.modeset=1" /etc/default/grub; then
-        sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="\(.*\)"/GRUB_CMDLINE_LINUX_DEFAULT="\1 nvidia_drm.modeset=1 nvidia_drm.fbdev=1"/' /etc/default/grub
-        update-grub
-      fi
-      # 2. 注入模块配置 (显存唤醒保护)
-      echo "options nvidia NVreg_PreserveVideoMemoryAllocations=1" > /etc/modprobe.d/nvidia-power-management.conf
-      systemctl enable nvidia-suspend nvidia-hibernate nvidia-resume
-      update-initramfs -u
-    fi
-  changed_when: false
+- name: 安装 NVIDIA GPU 专有驱动 (自动检测)
+  ansible.builtin.shell: ubuntu-drivers autoinstall
+  args:
+    creates: /usr/bin/nvidia-smi
+  when: nvidia_check.rc == 0
+
+- name: 配置 NVIDIA Wayland 最佳实践 (内核参数)
+  ansible.builtin.copy:
+    dest: /etc/default/grub.d/99-nvidia-wayland.cfg
+    content: |
+      GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT nvidia_drm.modeset=1 nvidia_drm.fbdev=1"
+    mode: '0644'
+  when: nvidia_check.rc == 0
+  notify: update grub
+
+- name: 配置 NVIDIA 显存唤醒保护模块
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/nvidia-power-management.conf
+    content: "options nvidia NVreg_PreserveVideoMemoryAllocations=1\n"
+    mode: '0644'
+  when: nvidia_check.rc == 0
+  notify: update initramfs
+
+- name: 启用 NVIDIA 休眠恢复相关服务
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: yes
+  loop:
+    - nvidia-suspend
+    - nvidia-hibernate
+    - nvidia-resume
+  when: nvidia_check.rc == 0
+
+
+- name: 提高 inotify 的实例数和文件监听数上限 (解决文件监控耗尽警告)
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/90-override.conf
+    state: present
+    reload: yes
+  loop:
+    - { name: 'fs.inotify.max_user_instances', value: '8192' }
+    - { name: 'fs.inotify.max_user_watches', value: '524288' }
+
+- name: 创建 SDDM 配置目录
+  ansible.builtin.file:
+    path: /etc/sddm.conf.d
+    state: directory
+    mode: '0755'
+
+- name: 配置 SDDM 自动登录到 Plasma Wayland (实现零交互开机进桌面)
+  ansible.builtin.copy:
+    dest: /etc/sddm.conf.d/autologin.conf
+    content: |
+      [Autologin]
+      User={{ target_user }}
+      Session=plasmawayland
+    mode: '0644'
