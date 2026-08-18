@@ -43,13 +43,15 @@
       - xwayland
     state: present
 
-- name: 安装桌面环境核心组件 (Fcitx5 输入法及相关依赖)
+- name: 安装桌面环境核心组件 (Fcitx5 输入法、中文字体及相关依赖)
   ansible.builtin.apt:
     name:
       - fcitx5
       - fcitx5-config-qt
       - fcitx5-chinese-addons
       - fcitx5-rime
+      - fonts-noto-cjk
+      - fonts-noto-color-emoji
       - nvidia-vaapi-driver
     state: present
 
@@ -62,9 +64,16 @@
     # 这里可以直接读取原先配置里的列表，作为演示先写死几个
     - org.mozilla.firefox
     - io.github.peazip.PeaZip
+    - com.bilingify.readest
 
 - name: 安装局域网定制工具 (CC-Switch 等，如果安装包存在)
   ansible.builtin.apt:
     deb: "{{ item }}"
   loop:
     - "/usr/local/share/provisioner-ubuntu/config/cc-switch.deb"
+
+
+- name: 设置 Kitty 为底层系统默认终端 (x-terminal-emulator)
+  community.alternatives.alternatives:
+    name: x-terminal-emulator
+    path: /usr/bin/kitty

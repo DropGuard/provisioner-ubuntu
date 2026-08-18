@@ -57,37 +57,12 @@
 
 - name: 设置默认看图和视频软件 (qimgv)
   ansible.builtin.shell: |
-    xdg-mime default qimgv.desktop image/jpeg image/png image/gif image/webp image/bmp image/tiff
-
-- name: 创建 Konsole 自定义配置目录
-  ansible.builtin.file:
-    path: "~/.local/share/konsole"
-    state: directory
-    mode: '0755'
-
-- name: 注入带有 Nerd Font 的 Konsole Profile
-  ansible.builtin.copy:
-    dest: "~/.local/share/konsole/Dropguard.profile"
-    content: |
-      [Appearance]
-      ColorScheme=Breeze
-      Font=JetBrainsMono NF,14,-1,5,50,0,0,0,0,0
-
-      [General]
-      Name=Dropguard
-      Parent=FALLBACK/
-    mode: '0644'
-
-- name: 设为 KDE 全局默认终端配置
-  ansible.builtin.copy:
-    dest: "~/.config/konsolerc"
-    content: |
-      [Desktop Entry]
-      DefaultProfile=Dropguard.profile
-
-      [General]
-      ConfigVersion=1
-    mode: '0644'
+    if [ "$(xdg-mime query default image/jpeg)" != "qimgv.desktop" ]; then
+      xdg-mime default qimgv.desktop image/jpeg image/png image/gif image/webp image/bmp image/tiff
+      echo "changed"
+    fi
+  register: mime_qimgv
+  changed_when: "'changed' in mime_qimgv.stdout"
 
 - name: 配置 Firefox 环境变量以支持 NVIDIA 硬解 (Flatpak Override)
   ansible.builtin.command: flatpak override --user --env={{ item }} org.mozilla.firefox
@@ -103,20 +78,21 @@
     state: directory
     mode: '0755'
 
-- name: 物理预埋 Firefox profiles.ini (不能使用软链接以避开沙盒限制)
-  ansible.builtin.copy:
-    dest: "~/.var/app/org.mozilla.firefox/config/mozilla/firefox/profiles.ini"
-    content: |
-      [Profile0]
-      Name=default
-      IsRelative=1
-      Path=default
-      Default=1
-
-      [General]
-      StartWithLastProfile=1
-      Version=2
+- name: 物理预埋 Firefox profiles.ini (声明式局部配置，不破坏原生生成)
+  community.general.ini_file:
+    path: "~/.var/app/org.mozilla.firefox/config/mozilla/firefox/profiles.ini"
+    section: "{{ item.section }}"
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
     mode: '0644'
+    create: yes
+  loop:
+    - { section: 'Profile0', option: 'Name', value: 'default' }
+    - { section: 'Profile0', option: 'IsRelative', value: '1' }
+    - { section: 'Profile0', option: 'Path', value: 'default' }
+    - { section: 'Profile0', option: 'Default', value: '1' }
+    - { section: 'General', option: 'StartWithLastProfile', value: '1' }
+    - { section: 'General', option: 'Version', value: '2' }
 
 - name: 物理预埋 Firefox user.js 以开启硬解
   ansible.builtin.copy:
@@ -128,4 +104,25 @@
 
 - name: 设置 PeaZip 为默认解压软件
   ansible.builtin.shell: |
-    xdg-mime default io.github.peazip.PeaZip.desktop application/zip application/x-7z-compressed application/x-rar application/x-tar application/gzip application/x-bzip2 application/x-xz
+    if [ "$(xdg-mime query default application/zip)" != "io.github.peazip.PeaZip.desktop" ]; then
+      xdg-mime default io.github.peazip.PeaZip.desktop application/zip application/x-7z-compressed application/x-rar application/x-tar application/gzip application/x-bzip2 application/x-xz
+      echo "changed"
+    fi
+  register: mime_peazip
+  changed_when: "'changed' in mime_peazip.stdout"
+
+
+- name: 设置 Kitty 为 KDE Plasma 全局默认终端
+  ansible.builtin.command: kwriteconfig6 --file kdeglobals --group General --key TerminalApplication --type string "kitty"
+
+- name: 创建 Haruna 配置目录
+  ansible.builtin.file:
+    path: "~/.config/haruna"
+    state: directory
+    mode: '0755'
+
+- name: 实体复制 Haruna 基准配置 (物理隔离，彻底杜绝播放历史写入 Git 仓库)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir | dirname }}/config/haruna/"
+    dest: "~/.config/haruna/"
+    mode: '0644'
