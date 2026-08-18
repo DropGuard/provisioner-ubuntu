@@ -110,6 +110,13 @@ func testProvisionCmd() *cobra.Command {
 				if state == "failed" {
 					return fmt.Errorf("first-boot.service FAILED — provision did not complete\n调试: %s", debugBootHint(overlay, work))
 				}
+
+				// 校验图形界面自动登录：如果 SDDM 处于活跃状态，确保 dailyuser 已经自动创建并进入会话
+				fmt.Println("asserting desktop graphical session autologin...")
+				desktopCheckCmd := `if systemctl is-active --quiet sddm; then loginctl list-sessions --no-legend | grep -q 'dailyuser' || { echo 'ERROR: SDDM is active but dailyuser session is not logged in (autologin failed)'; exit 1; }; fi`
+				if out, err := vmtest.SshRun(sess.SSH, desktopCheckCmd, 30*time.Second); err != nil {
+					return fmt.Errorf("desktop autologin assertion FAILED: %w\n%s\n调试: %s", err, out, debugBootHint(overlay, work))
+				}
 			} else {
 				fmt.Println("check-only: 基于已 provision 的镜像,跳过重新 provision")
 			}
